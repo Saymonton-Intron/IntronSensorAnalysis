@@ -1,34 +1,42 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IntronFileController.Helpers;
+using IntronFileController.Views;
 using MaterialDesignThemes.Wpf;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace IntronFileController.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
     private IThemeHelper themeHelper;
-
-    public PackIconKind CurrentThemeIcon
-    {
-        get
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TitleText))]
+    private UserControl currentUC;
+    public string TitleText => 
+        CurrentUC switch 
         {
-            var x = themeHelper.GetCurrentBaseTheme() == BaseTheme.Dark
-            ? PackIconKind.MoonWaxingCrescent
-            : PackIconKind.WhiteBalanceSunny;
+            HomeView => "Clique ou arraste para adicionar um arquivo.",
+            _ => ""
+        };
+        
+    
+    public PackIconKind CurrentThemeIcon =>
+        themeHelper.GetCurrentBaseTheme() == BaseTheme.Dark
+        ? PackIconKind.MoonWaxingCrescent
+        : PackIconKind.WhiteBalanceSunny;
 
-            return x;
-        }
-    }
 
-    public MainViewModel(IThemeHelper _themeHelper)
+
+    public MainViewModel(IThemeHelper _themeHelper, HomeViewModel homeViewModel)
     {
         themeHelper = _themeHelper;
+        CurrentUC = new HomeView(homeViewModel);
 
         Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            themeHelper.SetLightTheme();
+            themeHelper.SetDarkTheme();
             OnPropertyChanged(nameof(CurrentThemeIcon));
         });
     }
@@ -39,11 +47,5 @@ public partial class MainViewModel : ObservableObject
     {
         themeHelper.ToggleTheme();
         OnPropertyChanged(nameof(CurrentThemeIcon));
-    }
-
-    [RelayCommand]
-    private void AddFileButton()
-    {
-
     }
 }

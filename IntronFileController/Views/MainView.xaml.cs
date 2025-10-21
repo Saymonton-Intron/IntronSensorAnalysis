@@ -33,10 +33,5 @@ namespace IntronFileController.Views
         {
             VM.ChangeThemeCommand.Execute(this);
         }
-
-        private void Card_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            VM.AddFileButtonCommand.Execute(this);
-        }
     }
 }

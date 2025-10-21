@@ -18,37 +18,22 @@
     mc:Ignorable="d">
     <Grid Margin="12">
         <Grid>
-            <TextBlock
-                HorizontalAlignment="Center"
-                Style="{DynamicResource MaterialDesignTitleLargeTextBlock}"
-                Text="Clique ou arraste para adicionar um arquivo." />
-            <Border
-                Width="30"
-                Height="30"
-                HorizontalAlignment="Right"              
-                VerticalAlignment="Top" Background="Transparent"
-                MouseDown="PackIcon_MouseDown">
-                <materialDesign:PackIcon
-                    Width="30"
+            <TextBlock HorizontalAlignment="Center"
+                       Style="{DynamicResource MaterialDesignTitleLargeTextBlock}"
+                       Text="{Binding TitleText}" />
+            <Border Width="30"
                     Height="30"
-                    Kind="{Binding CurrentThemeIcon}" />
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Background="Transparent"
+                    MouseDown="PackIcon_MouseDown">
+                <materialDesign:PackIcon Width="30"
+                                         Height="30"
+                                         Kind="{Binding CurrentThemeIcon}" />
             </Border>
 
         </Grid>
-        <materialDesign:Card MouseDown="Card_MouseDown"
-            Width="600"
-            Height="350"
-            VerticalAlignment="Center"
-            Style="{DynamicResource MaterialDesignOutlinedCard}">
-            <materialDesign:PackIcon
-                Width="50"
-                Height="50"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Kind="PlusBox" />
-
-
-
-        </materialDesign:Card>
+        
+        <UserControl Content="{Binding CurrentUC}" />
     </Grid>
 </Window>

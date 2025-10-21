@@ -20,9 +20,11 @@ public partial class App : Application
             {
                 // Views
                 services.AddSingleton<MainView>();
+                services.AddSingleton<HomeView>();
 
                 // ViewModels
                 services.AddSingleton<MainViewModel>();
+                services.AddSingleton<HomeViewModel>();
 
                 // Helpers
                 services.AddSingleton<IThemeHelper, ThemeHelper>();
