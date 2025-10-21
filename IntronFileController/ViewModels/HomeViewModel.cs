@@ -28,6 +28,8 @@ public partial class HomeViewModel : ObservableObject
         // Abre dialogo para selecionar os arquivos para importar
         var textPaths = fileImportService.OpenDialogSelectTextFiles();
 
+        if (textPaths.Length == 0) return;
+
         // chama serviço para importar (faz leitura assíncrona)
         var imported = await fileImportService.ImportTextFilesAsync(textPaths);
 
@@ -35,6 +37,13 @@ public partial class HomeViewModel : ObservableObject
         fileHandler.AddFiles(imported);
 
         // invoke back
+        NavigateInvoked?.Invoke(this, new());
+    }
+
+    public async Task AddFilesFromPathsAsync(string[] paths)
+    {
+        var imported = await fileImportService.ImportTextFilesAsync(paths);
+        fileHandler.AddFiles(imported);
         NavigateInvoked?.Invoke(this, new());
     }
 }

@@ -14,17 +14,21 @@
         <materialDesign:Card
             Width="600"
             Height="350"
+            PreviewDragOver="AddButton_PreviewDragOver"
+            Drop="AddButton_Drop"
+            AllowDrop="True"
             VerticalAlignment="Center"
             MouseDown="Card_MouseDown"
             Style="{DynamicResource MaterialDesignOutlinedCard}">
-            <materialDesign:PackIcon
-                Width="50"
-                Height="50"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Kind="PlusBox" />
-
-
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <materialDesign:PackIcon Width="50"
+                                         Height="50"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"
+                                         Kind="PlusBox" />
+                <TextBlock Text="Solte seus arquivos .txt aqui" Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"/>
+            </StackPanel>
 
         </materialDesign:Card>
     </Grid>
