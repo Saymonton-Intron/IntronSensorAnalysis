@@ -29,7 +29,7 @@
                     Width="Auto"
                     Height="30"
                     Command="{Binding RemoveSelectedCommand}"
-                    Content="Remover Selecionados" />
+                    Content="Remover" />
             </StackPanel>
 
             <Grid >

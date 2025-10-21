@@ -10,7 +10,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Title="Intron File Editor"
     Width="800"
-    Height="500"
+    Height="650"
     Background="{DynamicResource MaterialDesignPaper}"
     Foreground="{DynamicResource MaterialDesignBody}"
     WindowStartupLocation="CenterScreen"

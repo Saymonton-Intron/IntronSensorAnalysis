@@ -16,9 +16,50 @@ namespace IntronFileController.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private IThemeHelper themeHelper;
+    private readonly IFileImportService fileImportService;
+    private readonly ServiceProvider serviceProvider;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TitleText))]
     private UserControl currentUC;
+    partial void OnCurrentUCChanged(UserControl value)
+    {
+        if (value is HomeView home)
+        {
+            home.NavigateInvoked += Home_NavigateInvoked;
+        }
+    }
+    partial void OnCurrentUCChanged(UserControl? oldValue, UserControl newValue)
+    {
+        if (newValue is HomeView home)
+        {
+            home.NavigateInvoked += Home_NavigateInvoked;
+        }
+        else if (oldValue is HomeView home1)
+        {
+            home1.NavigateInvoked -= Home_NavigateInvoked;
+        }
+        
+        if (newValue is FileEditingView fileEdit)
+        {
+            fileEdit.NavigateInvoked += FileEditing_NavigateInvoked;
+        }
+        else if (oldValue is FileEditingView fileEdit1)
+        {
+            fileEdit1.NavigateInvoked -= FileEditing_NavigateInvoked;
+        }
+    }
+
+    private void FileEditing_NavigateInvoked(object? sender, EventArgs e)
+    {
+        CurrentUC = serviceProvider.GetRequiredService<HomeView>();
+    }
+
+    private void Home_NavigateInvoked(object? sender, EventArgs e)
+    {
+        CurrentUC = serviceProvider.GetRequiredService<FileEditingView>();
+    }
+
     public string TitleText => 
         CurrentUC switch 
         {
@@ -27,16 +68,10 @@ public partial class MainViewModel : ObservableObject
             _ => ""
         };
 
-    private readonly IFileImportService fileImportService;
-
     public PackIconKind CurrentThemeIcon =>
         themeHelper.GetCurrentBaseTheme() == BaseTheme.Dark
         ? PackIconKind.MoonWaxingCrescent
         : PackIconKind.WhiteBalanceSunny;
-
-    private readonly HomeView homeView;
-    private readonly FileEditingView fileEditingView;
-    private readonly ServiceProvider serviceProvider;
 
     public MainViewModel(IThemeHelper _themeHelper, IFileImportService _fileImportService, ServiceProvider _serviceProvider)
     {
@@ -50,38 +85,6 @@ public partial class MainViewModel : ObservableObject
         {
             themeHelper.SetDarkTheme();
             OnPropertyChanged(nameof(CurrentThemeIcon));
-        });
-
-        RegisterWeakMessages();
-
-    }
-
-    private void RegisterWeakMessages()
-    {
-        WeakReferenceMessenger.Default.Register<HomeViewModel>(this, async (sender, viewModel) =>
-        {
-            if (viewModel.TextPaths is string[] paths && paths.Length > 0)
-            {
-                ObservableCollection<ImportedFile> ImportedFiles = new();
-                // chama serviço para importar (faz leitura assíncrona)
-                var imported = await fileImportService.ImportTextFilesAsync(paths);
-
-                // dedup pelo caminho
-                foreach (var f in imported)
-                {
-                    if (!ImportedFiles.Any(x => x.FilePath.Equals(f.FilePath, System.StringComparison.OrdinalIgnoreCase)))
-                        ImportedFiles.Add(f);
-                }
-
-                var editingView = serviceProvider.GetRequiredService<FileEditingView>();
-                editingView.SetImportedFiles(ImportedFiles);
-                CurrentUC = editingView;
-                
-                // seleciona o último adicionado
-                //SelectedFile = ImportedFiles.LastOrDefault();
-
-                // Mandar pra fileEditingView com a lista e lá ele seleciona o ultimo
-            }
         });
     }
 

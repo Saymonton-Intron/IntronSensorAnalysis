@@ -31,6 +31,7 @@ public partial class App : Application
 
                 // Helpers
                 services.AddSingleton<IThemeHelper, ThemeHelper>();
+                services.AddSingleton<IFileHandlerHelper, FileHandlerHelper>();
 
                 // Services
                 services.AddSingleton<IFileImportService, FileImportService>();

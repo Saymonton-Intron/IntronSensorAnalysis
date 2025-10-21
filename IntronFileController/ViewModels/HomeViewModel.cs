@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using IntronFileController.Helpers;
 using IntronFileController.Models;
 using IntronFileController.Services;
 using Microsoft.Win32;
@@ -11,29 +12,29 @@ namespace IntronFileController.ViewModels;
 
 public partial class HomeViewModel : ObservableObject
 {
+    private readonly IFileImportService fileImportService;
+    private readonly IFileHandlerHelper fileHandler;
+    public event EventHandler NavigateInvoked;
 
-    public string[]? TextPaths;
+    public HomeViewModel(IFileImportService _fileImportService, IFileHandlerHelper _fileHandler)
+    {
+        fileImportService = _fileImportService;
+        fileHandler = _fileHandler;
+    }
 
     [RelayCommand]
     private async Task AddFileButton()
     {
-        var dlg = new OpenFileDialog
-        {
-            Multiselect = true,
-            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            Title = "Selecione um ou mais arquivos .txt"
-        };
+        // Abre dialogo para selecionar os arquivos para importar
+        var textPaths = fileImportService.OpenDialogSelectTextFiles();
 
-        bool? result = dlg.ShowDialog();
-        if (result != true) return;
+        // chama serviço para importar (faz leitura assíncrona)
+        var imported = await fileImportService.ImportTextFilesAsync(textPaths);
 
-        var selectedPaths = dlg.FileNames;
-        if (selectedPaths == null || selectedPaths.Length == 0) return;
+        // Adiciona os arquivos no fileHandler
+        fileHandler.AddFiles(imported);
 
-        // opcional: filtrar por tamanho, extensão, etc.
-        TextPaths = selectedPaths.Where(p => p.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)).ToArray();
-
-
-        WeakReferenceMessenger.Default.Send<HomeViewModel>(this);
+        // invoke back
+        NavigateInvoked?.Invoke(this, new());
     }
 }

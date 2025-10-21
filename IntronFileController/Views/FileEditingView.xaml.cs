@@ -22,17 +22,15 @@ namespace IntronFileController.Views
     public partial class FileEditingView : UserControl
     {
         private readonly FileEditingViewModel VM;
+        public event EventHandler NavigateInvoked;
         public FileEditingView(FileEditingViewModel viewModel)
         {
             InitializeComponent();
 
             VM = viewModel;
             DataContext = viewModel;
-        }
 
-        public void SetImportedFiles(System.Collections.ObjectModel.ObservableCollection<Models.ImportedFile> importedFiles)
-        {
-            VM.SetImportedFilesCommand.Execute(importedFiles);
+            VM.NavigateInvoked += (sender, args) => NavigateInvoked?.Invoke(sender, args);
         }
     }
 }
