@@ -1,4 +1,5 @@
 ﻿using IntronFileController.Helpers;
+using IntronFileController.Services;
 using IntronFileController.ViewModels;
 using IntronFileController.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,14 +21,20 @@ public partial class App : Application
             {
                 // Views
                 services.AddSingleton<MainView>();
-                services.AddSingleton<HomeView>();
+                services.AddTransient<HomeView>();
+                services.AddTransient<FileEditingView>();
 
                 // ViewModels
                 services.AddSingleton<MainViewModel>();
-                services.AddSingleton<HomeViewModel>();
+                services.AddTransient<HomeViewModel>();
+                services.AddTransient<FileEditingViewModel>();
 
                 // Helpers
                 services.AddSingleton<IThemeHelper, ThemeHelper>();
+
+                // Services
+                services.AddSingleton<IFileImportService, FileImportService>();
+                services.AddSingleton<ServiceProvider>(services.BuildServiceProvider());
             })
             .Build();
 
