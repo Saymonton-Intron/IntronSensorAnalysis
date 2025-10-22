@@ -72,40 +72,67 @@
                         <Grid Visibility="{Binding LabelsVisibility}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
+                            <!--  Nome e caminho  -->
                             <StackPanel>
-                                <TextBlock DockPanel.Dock="Top"
-                                           HorizontalAlignment="Center"
-                                           FontSize="14"
-                                           FontWeight="Bold"
-                                           Text="{Binding SelectedFile.FileName}" />
-                                <TextBlock DockPanel.Dock="Top"
-                                           Margin="0,8,0,0"
-                                           FontWeight="SemiBold"
-                                           Foreground="Red"
-                                           Text="Caminho:" />
-                                <TextBlock Text="{Binding SelectedFile.FilePath}"
-                                           TextWrapping="Wrap" />
-
-                                <TextBlock Margin="0,12,0,6"
-                                           FontWeight="SemiBold"
-                                           Foreground="Red"
-                                           Text="Conteúdo (preview):" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    DockPanel.Dock="Top"
+                                    FontSize="14"
+                                    FontWeight="Bold"
+                                    Text="{Binding SelectedFile.FileName}" />
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    DockPanel.Dock="Top"
+                                    FontWeight="SemiBold"
+                                    Foreground="MediumPurple"
+                                    Style="{DynamicResource MaterialDesignBodyLargeTextBlock}"
+                                    Text="Caminho:" />
+                                <TextBlock Text="{Binding SelectedFile.FilePath}" TextWrapping="Wrap" />
                             </StackPanel>
 
+                            <!--  Primeiras linhas preview  -->
+                            <TextBlock
+                                Grid.Row="1"
+                                Margin="0,12,0,6"
+                                FontWeight="SemiBold"
+                                Foreground="MediumPurple"
+                                Style="{DynamicResource MaterialDesignBodyLargeTextBlock}"
+                                Text="Corte topo (preview):" />
+                            <Grid Grid.Row="2">
+                                <TextBox
+                                    Height="{Binding RelativeSource={RelativeSource AncestorType=Grid}, Path=ActualHeight}"
+                                    AcceptsReturn="True"
+                                    Foreground="Gray"
+                                    IsReadOnly="True"
+                                    Text="{Binding SelectedFile.Preview}"
+                                    TextWrapping="Wrap"
+                                    VerticalScrollBarVisibility="Auto" />
+                            </Grid>
 
 
-                            <Grid DockPanel.Dock="Bottom"
-                                  Grid.Row="1">
-                                <TextBox Height="{Binding RelativeSource={RelativeSource AncestorType=Grid}, Path=ActualHeight}"
-                                         AcceptsReturn="True"
-                                         Foreground="Gray"
-                                         IsReadOnly="True"
-                                         Text="{Binding SelectedFile.Preview}"
-                                         TextWrapping="Wrap"
-                                         VerticalScrollBarVisibility="Auto" />
+                            <!--  Ultimas linhas preview  -->
+                            <TextBlock
+                                Grid.Row="3"
+                                Margin="0,12,0,6"
+                                FontWeight="SemiBold"
+                                Foreground="MediumPurple"
+                                Style="{DynamicResource MaterialDesignBodyLargeTextBlock}"
+                                Text="Corte embaixo (preview):" />
+                            <Grid Grid.Row="4">
+                                <TextBox
+                                    Height="{Binding RelativeSource={RelativeSource AncestorType=Grid}, Path=ActualHeight}"
+                                    AcceptsReturn="True"
+                                    Foreground="Gray"
+                                    IsReadOnly="True"
+                                    Text="{Binding SelectedFile.Preview}" 
+                                    TextWrapping="Wrap"
+                                    VerticalScrollBarVisibility="Auto" />
                             </Grid>
 
                         </Grid>
