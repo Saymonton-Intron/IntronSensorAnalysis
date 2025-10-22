@@ -69,34 +69,46 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <StackPanel Visibility="{Binding LabelsVisibility}">
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                FontSize="14"
-                                FontWeight="Bold"
-                                Text="{Binding SelectedFile.FileName}" />
-                            <TextBlock
-                                Margin="0,8,0,0"
-                                FontWeight="SemiBold"
-                                Foreground="Red"
-                                Text="Caminho:" />
-                            <TextBlock Text="{Binding SelectedFile.FilePath}" TextWrapping="Wrap" />
+                        <Grid Visibility="{Binding LabelsVisibility}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
 
-                            <TextBlock
-                                Margin="0,12,0,6"
-                                FontWeight="SemiBold"
-                                Foreground="Red"
-                                Text="Conteúdo (preview):" />
-                            <TextBox
-                                Height="300"
-                                AcceptsReturn="True"
-                                Foreground="Gray"
-                                IsReadOnly="True"
-                                Text="{Binding SelectedFile.Preview}"
-                                TextWrapping="Wrap"
-                                VerticalScrollBarVisibility="Auto" />
+                            <StackPanel>
+                                <TextBlock DockPanel.Dock="Top"
+                                           HorizontalAlignment="Center"
+                                           FontSize="14"
+                                           FontWeight="Bold"
+                                           Text="{Binding SelectedFile.FileName}" />
+                                <TextBlock DockPanel.Dock="Top"
+                                           Margin="0,8,0,0"
+                                           FontWeight="SemiBold"
+                                           Foreground="Red"
+                                           Text="Caminho:" />
+                                <TextBlock Text="{Binding SelectedFile.FilePath}"
+                                           TextWrapping="Wrap" />
 
-                        </StackPanel>
+                                <TextBlock Margin="0,12,0,6"
+                                           FontWeight="SemiBold"
+                                           Foreground="Red"
+                                           Text="Conteúdo (preview):" />
+                            </StackPanel>
+
+
+
+                            <Grid DockPanel.Dock="Bottom"
+                                  Grid.Row="1">
+                                <TextBox Height="{Binding RelativeSource={RelativeSource AncestorType=Grid}, Path=ActualHeight}"
+                                         AcceptsReturn="True"
+                                         Foreground="Gray"
+                                         IsReadOnly="True"
+                                         Text="{Binding SelectedFile.Preview}"
+                                         TextWrapping="Wrap"
+                                         VerticalScrollBarVisibility="Auto" />
+                            </Grid>
+
+                        </Grid>
 
                         <!--  Configurações da pagina  -->
                         <DockPanel Grid.Row="1">
