@@ -33,6 +33,32 @@ namespace IntronFileController.ViewModels
         [ObservableProperty] private Visibility restOfContentVisibility = Visibility.Hidden;
         public Visibility LabelsVisibility => SelectedFile != null ? Visibility.Visible : Visibility.Collapsed;
 
+        private string firstLinesTextBox = "";
+        public string FirstLinesTextBox
+        {
+            get => firstLinesTextBox.ToString();
+            set
+            {
+                if (!int.TryParse(value, out _))
+                    return;
+
+                SetProperty(ref firstLinesTextBox, value);
+            }
+        }
+
+        private string lastLinesTextBox = "";
+        public string LastLinesTextBox
+        {
+            get => lastLinesTextBox;
+            set
+            {
+                if (!int.TryParse(value, out _))
+                    return;
+
+                SetProperty(ref lastLinesTextBox, value);
+            }
+        }
+
         public FileEditingViewModel(IFileHandlerHelper _fileHandlerHelper, IFileImportService _fileImportService)
         {
             fileHandlerHelper = _fileHandlerHelper;

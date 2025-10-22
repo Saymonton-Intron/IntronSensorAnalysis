@@ -15,26 +15,33 @@
     </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <DockPanel Grid.Row="0" Margin="10">
-            <StackPanel
-                Margin="0,0,0,8"
-                HorizontalAlignment="Left"
-                DockPanel.Dock="Top"
-                Orientation="Horizontal">
-                <Button
-                    Height="30"
-                    Margin="0,0,8,0"
-                    Command="{Binding AddFilesCommand}"
-                    Content="Adicionar" />
-                <Button
-                    Width="Auto"
-                    Height="30"
-                    Command="{Binding RemoveSelectedCommand}"
-                    Content="Remover" />
-            </StackPanel>
+
+        <!--  Botões de cima  -->
+        <Grid Margin="8,0,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button
+                Grid.Column="0"
+                Height="30"
+                Margin="0,0,8,0"
+                Command="{Binding AddFilesCommand}"
+                Content="Adicionar" />
+            <Button
+                Grid.Column="1"
+                Width="Auto"
+                Height="30"
+                Command="{Binding RemoveSelectedCommand}"
+                Content="Remover" />
+        </Grid>
+
+        <!--  Conteudo  -->
+        <DockPanel Grid.Row="1" Margin="10">
 
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -58,6 +65,10 @@
                     BorderBrush="LightGray"
                     BorderThickness="1">
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <StackPanel Visibility="{Binding LabelsVisibility}">
                             <TextBlock
                                 HorizontalAlignment="Center"
@@ -84,7 +95,45 @@
                                 Text="{Binding SelectedFile.Preview}"
                                 TextWrapping="Wrap"
                                 VerticalScrollBarVisibility="Auto" />
+
                         </StackPanel>
+
+                        <!--  Configurações da pagina  -->
+                        <DockPanel Grid.Row="1">
+                            <TextBlock
+                                VerticalAlignment="Bottom"
+                                Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
+                                Text="Remover Primeiras: " />
+                            <TextBox
+                                MinWidth="35"
+                                MaxWidth="50"
+                                FontSize="14"
+                                Style="{DynamicResource MaterialDesignFloatingHintTextBox}"
+                                Text="{Binding FirstLinesTextBox, Mode=TwoWay}"
+                                TextAlignment="Center" />
+
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Bottom"
+                                Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
+                                Text="Remover Ultimas: " />
+                            <TextBox
+                                MinWidth="35"
+                                MaxWidth="50"
+                                FontSize="14"
+                                Style="{DynamicResource MaterialDesignFloatingHintTextBox}"
+                                Text="{Binding LastLinesTextBox, Mode=TwoWay}"
+                                TextAlignment="Center" />
+
+                            <Button
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Content="Aplicar a todos"
+                                Style="{DynamicResource MaterialDesignFlatLightButton}" />
+                        </DockPanel>
+
+
+
                         <TextBlock
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
@@ -97,7 +146,11 @@
                 </Border>
             </Grid>
         </DockPanel>
-        <DockPanel Grid.Row="1" LastChildFill="False">
+
+
+
+        <!--  Botões de baixo  -->
+        <DockPanel Grid.Row="2" LastChildFill="False">
             <Button
                 Margin="10,0,10,0"
                 Content="Processar Tudo"
