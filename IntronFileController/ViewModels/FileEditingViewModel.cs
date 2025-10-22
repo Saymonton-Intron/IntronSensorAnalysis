@@ -23,6 +23,7 @@ namespace IntronFileController.ViewModels
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand))]
+        [NotifyPropertyChangedFor(nameof(LabelsVisibility))]
         private ImportedFile selectedFile;
 
         private readonly IFileHandlerHelper fileHandlerHelper;
@@ -30,6 +31,7 @@ namespace IntronFileController.ViewModels
 
         [ObservableProperty] private Visibility addCardVisibility = Visibility.Visible;
         [ObservableProperty] private Visibility restOfContentVisibility = Visibility.Hidden;
+        public Visibility LabelsVisibility => SelectedFile != null ? Visibility.Visible : Visibility.Collapsed;
 
         public FileEditingViewModel(IFileHandlerHelper _fileHandlerHelper, IFileImportService _fileImportService)
         {
