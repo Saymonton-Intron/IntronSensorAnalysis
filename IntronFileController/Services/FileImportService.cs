@@ -86,7 +86,7 @@ namespace IntronFileController.Services
             {
                 ct.ThrowIfCancellationRequested();
 
-                string? line = await reader.ReadLineAsync().ConfigureAwait(false);
+                string? line = await reader.ReadLineAsync(ct).ConfigureAwait(false);
                 currentLine++;
 
                 if (currentLine < startLine)
@@ -117,7 +117,7 @@ namespace IntronFileController.Services
             if (selectedPaths == null || selectedPaths.Length == 0) return [];
 
             // opcional: filtrar por tamanho, extensão, etc.
-            return selectedPaths.Where(p => p.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)).ToArray();
+            return [.. selectedPaths.Where(p => p.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase))];
         }
     }
 }

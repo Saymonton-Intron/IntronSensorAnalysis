@@ -29,7 +29,7 @@ namespace IntronFileController.Common
                 pos--;
             }
 
-            return refString.Substring(pos);
+            return refString[pos..];
         }
         /// <summary>
         /// Extracts the first specified number of lines from the given string, using the specified newline character.

@@ -15,7 +15,7 @@ namespace IntronFileController.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private IThemeHelper themeHelper;
+    private readonly IThemeHelper themeHelper;
     private readonly IFileImportService fileImportService;
     private readonly ServiceProvider serviceProvider;
 

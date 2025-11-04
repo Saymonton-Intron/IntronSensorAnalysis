@@ -10,17 +10,11 @@ using System.Windows;
 
 namespace IntronFileController.ViewModels;
 
-public partial class HomeViewModel : ObservableObject
+public partial class HomeViewModel(IFileImportService _fileImportService, IFileHandlerHelper _fileHandler) : ObservableObject
 {
-    private readonly IFileImportService fileImportService;
-    private readonly IFileHandlerHelper fileHandler;
+    private readonly IFileImportService fileImportService = _fileImportService;
+    private readonly IFileHandlerHelper fileHandler = _fileHandler;
     public event EventHandler NavigateInvoked;
-
-    public HomeViewModel(IFileImportService _fileImportService, IFileHandlerHelper _fileHandler)
-    {
-        fileImportService = _fileImportService;
-        fileHandler = _fileHandler;
-    }
 
     [RelayCommand]
     private async Task AddFileButton()
