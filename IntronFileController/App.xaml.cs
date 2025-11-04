@@ -35,6 +35,7 @@ public partial class App : Application
 
                 // Services
                 services.AddSingleton<IFileImportService, FileImportService>();
+                services.AddSingleton<IFileExportService, FileExportService>();
                 services.AddSingleton<ServiceProvider>(services.BuildServiceProvider());
             })
             .Build();

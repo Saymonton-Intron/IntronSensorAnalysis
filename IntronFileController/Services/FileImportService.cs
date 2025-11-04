@@ -104,7 +104,7 @@ namespace IntronFileController.Services
 
         public string[] OpenDialogSelectTextFiles()
         {
-            var dlg = new OpenFileDialog
+            var dlg = new Microsoft.Win32.OpenFileDialog
             {
                 Multiselect = true,
                 Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",

@@ -13,6 +13,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Documents;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace IntronFileController.ViewModels
@@ -26,6 +27,7 @@ namespace IntronFileController.ViewModels
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ProcessAllCommand))]
         [NotifyPropertyChangedFor(nameof(LabelsVisibility))]
         [NotifyPropertyChangedFor(nameof(FirstLinesTextBox))]
         [NotifyPropertyChangedFor(nameof(LastLinesTextBox))]
@@ -35,6 +37,7 @@ namespace IntronFileController.ViewModels
 
         private readonly IFileHandlerHelper fileHandlerHelper;
         private readonly IFileImportService fileImportService;
+        private readonly IFileExportService fileExportService;
 
         [ObservableProperty] private Visibility addCardVisibility = Visibility.Visible;
         [ObservableProperty] private Visibility restOfContentVisibility = Visibility.Hidden;
@@ -124,10 +127,11 @@ namespace IntronFileController.ViewModels
             }
         }
 
-        public FileEditingViewModel(IFileHandlerHelper _fileHandlerHelper, IFileImportService _fileImportService)
+        public FileEditingViewModel(IFileHandlerHelper _fileHandlerHelper, IFileImportService _fileImportService, IFileExportService _fileExportService)
         {
             fileHandlerHelper = _fileHandlerHelper;
             fileImportService = _fileImportService;
+            fileExportService = _fileExportService;
             ImportedFiles = fileHandlerHelper.ImportedFiles;
             SelectedFile = ImportedFiles?.FirstOrDefault()!;
 
@@ -166,5 +170,13 @@ namespace IntronFileController.ViewModels
 
         }
         private bool CanExecuteRemoveSelectedCommand() => SelectedFile != null && ImportedFiles.Count > 0;
+
+        [RelayCommand(CanExecute = nameof(CanExecuteProcessAllCommand))]
+        private async Task ProcessAll()
+        {
+            var readOnlyList = new ReadOnlyObservableCollection<ImportedFileViewModel>(ImportedFiles);
+            await fileExportService.ExportAsync(readOnlyList, owner: System.Windows.Application.Current.MainWindow);
+        }
+        private bool CanExecuteProcessAllCommand() => SelectedFile != null && ImportedFiles.Count > 0; // Alterar depois
     }
 }

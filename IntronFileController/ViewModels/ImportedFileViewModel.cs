@@ -14,9 +14,9 @@ public partial class ImportedFileViewModel : ObservableObject
 
         // defaults “de fábrica”
         TopCutLine = 0;          // linha alvo topo (1-based)
-        TopContextCount = 5;       // qtas linhas pegar (antes e depois)
+        TopContextCount = 20;       // qtas linhas pegar (antes e depois)
         BottomCutLine = Model.Preview.Lines().Length;       // linha alvo fundo (1-based)
-        BottomContextCount = 5;
+        BottomContextCount = 20;
     }
 
     //----------- TOPO -----------
