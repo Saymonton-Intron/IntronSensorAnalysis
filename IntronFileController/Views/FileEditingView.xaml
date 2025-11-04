@@ -75,6 +75,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
@@ -105,34 +106,108 @@
                                 Style="{DynamicResource MaterialDesignBodyLargeTextBlock}"
                                 Text="Corte topo (preview):" />
                             <Grid Grid.Row="2">
-                                <TextBox
+                                <!--<TextBox
                                     Height="{Binding RelativeSource={RelativeSource AncestorType=Grid}, Path=ActualHeight}"
                                     AcceptsReturn="True"
                                     Foreground="Gray"
                                     IsReadOnly="True"
                                     Text="{Binding SelectedFile.Preview}"
                                     TextWrapping="Wrap"
-                                    VerticalScrollBarVisibility="Auto" />
+                                    VerticalScrollBarVisibility="Auto" />-->
+
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <TextBlock Foreground="Gray" TextWrapping="Wrap">
+                                        <!--<Run Text="{Binding SelectedFile.Preview}" />-->
+
+                                        <!--<Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />-->
+
+                                        <Run Text="{Binding SelectedFile.FirstLines}" />
+                                        <Run Foreground="Red">------------------------------------------------</Run>
+                                        <Run Foreground="Green" Text="{Binding SelectedFile.KeepFirstLines}" />
+
+                                        <!--<LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>-->
+
+                                    </TextBlock>
+                                </ScrollViewer>
                             </Grid>
 
+                            <Border
+                                Grid.Row="3"
+                                Width="{Binding RelativeSource={RelativeSource AncestorType=Border}, Path=ActualWidth}"
+                                BorderBrush="{Binding RelativeSource={RelativeSource AncestorType=Border}, Path=BorderBrush}"
+                                BorderThickness="1" />
 
                             <!--  Ultimas linhas preview  -->
                             <TextBlock
-                                Grid.Row="3"
+                                Grid.Row="4"
                                 Margin="0,12,0,6"
                                 FontWeight="SemiBold"
                                 Foreground="MediumPurple"
                                 Style="{DynamicResource MaterialDesignBodyLargeTextBlock}"
                                 Text="Corte embaixo (preview):" />
-                            <Grid Grid.Row="4">
-                                <TextBox
+                            <Grid Grid.Row="5">
+                                <!--<TextBox
                                     Height="{Binding RelativeSource={RelativeSource AncestorType=Grid}, Path=ActualHeight}"
                                     AcceptsReturn="True"
                                     Foreground="Gray"
                                     IsReadOnly="True"
-                                    Text="{Binding SelectedFile.Preview}" 
+                                    Text="{Binding SelectedFile.Preview}"
                                     TextWrapping="Wrap"
-                                    VerticalScrollBarVisibility="Auto" />
+                                    VerticalScrollBarVisibility="Auto" />-->
+
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <TextBlock Foreground="Gray" TextWrapping="Wrap">
+                                        <!--<Run Text="{Binding SelectedFile.Preview}" />-->
+
+                                        <!--<Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />
+                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <LineBreak />-->
+
+                                        <Run Foreground="Green" Text="{Binding SelectedFile.KeepLastLines}" />
+                                        <Run Foreground="Red">------------------------------------------------</Run>
+                                        <Run Text="{Binding SelectedFile.LastLines}" />
+
+
+                                        <!--<LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>
+                                        <LineBreak />
+                                        <Run>Parte do texto que será apagado</Run>-->
+
+                                    </TextBlock>
+                                </ScrollViewer>
                             </Grid>
 
                         </Grid>

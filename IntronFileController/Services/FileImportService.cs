@@ -11,14 +11,14 @@ namespace IntronFileController.Services
 {
     public interface IFileImportService
     {
-        Task<IEnumerable<ImportedFile>> ImportTextFilesAsync(IEnumerable<string> paths, int previewMaxChars = 10000);
+        Task<IEnumerable<ImportedFile>> ImportTextFilesAsync(IEnumerable<string> paths);
         string[] OpenDialogSelectTextFiles();
     }
 
     public class FileImportService : IFileImportService
     {
         // previewMaxChars evita carregar arquivos gigantes no preview (ajuste conforme necessário)
-        public async Task<IEnumerable<ImportedFile>> ImportTextFilesAsync(IEnumerable<string> paths, int previewMaxChars = 10000)
+        public async Task<IEnumerable<ImportedFile>> ImportTextFilesAsync(IEnumerable<string> paths)
         {
             var list = new List<ImportedFile>();
 
@@ -29,42 +29,76 @@ namespace IntronFileController.Services
                     var fi = new FileInfo(p);
                     if (!fi.Exists) continue;
 
-                    // limitada leitura para preview (evita estourar memória)
-                    using var stream = new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    // Abrir de forma assíncrona e com hint de leitura sequencial
+                    using var stream = new FileStream(
+                        p, FileMode.Open, FileAccess.Read, FileShare.Read,
+                        bufferSize: 81920,
+                        options: FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+                    // Detecta BOM automaticamente
                     using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
 
-                    // lê somente até previewMaxChars (mas podemos mudar para ReadToEndAsync se quiser carregar tudo)
-                    var buffer = new char[4096];
-                    var sb = new System.Text.StringBuilder();
-                    int totalRead = 0;
-                    while (!reader.EndOfStream && totalRead < previewMaxChars)
-                    {
-                        int toRead = Math.Min(buffer.Length, previewMaxChars - totalRead);
-                        int read = await reader.ReadAsync(buffer, 0, toRead);
-                        if (read <= 0) break;
-                        sb.Append(buffer, 0, read);
-                        totalRead += read;
-                    }
-
-                    var preview = sb.ToString();
-                    if (!reader.EndOfStream)
-                        preview += "\n\n--- PREVIEW TRUNCADO ---";
+                    // LÊ O ARQUIVO TODO
+                    string content = await reader.ReadToEndAsync();
 
                     list.Add(new ImportedFile
                     {
                         FileName = fi.Name,
                         FilePath = fi.FullName,
                         SizeBytes = fi.Length,
-                        Preview = preview
+                        Preview = content  // agora Preview contém o conteúdo completo
                     });
                 }
                 catch
                 {
-                    // se preferir, registre/logue a falha; aqui só ignoramos arquivos problemáticos
+                    // registre/logue se quiser; aqui ignoramos o arquivo problemático
                 }
             }
 
             return list;
+        }
+        public static async Task<string> ReadLinesRangeAsync(
+            string path,
+            int startLine,
+            int endLine,
+            CancellationToken ct = default)
+        {
+            if (startLine < 1)
+                throw new ArgumentOutOfRangeException(nameof(startLine), "startLine deve ser >= 1");
+            if (endLine < startLine)
+                throw new ArgumentOutOfRangeException(nameof(endLine), "endLine deve ser >= startLine");
+
+            var sb = new StringBuilder();
+            int currentLine = 0;
+
+            using var stream = new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                bufferSize: 81920,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+            using var reader = new StreamReader(
+                stream,
+                encoding: Encoding.UTF8,
+                detectEncodingFromByteOrderMarks: true,
+                bufferSize: 81920);
+
+            while (!reader.EndOfStream)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                string? line = await reader.ReadLineAsync().ConfigureAwait(false);
+                currentLine++;
+
+                if (currentLine < startLine)
+                    continue; // ainda não chegou na linha inicial
+
+                if (currentLine > endLine)
+                    break; // já passou da linha final
+
+                sb.AppendLine(line);
+            }
+
+            return sb.ToString();
         }
 
         public string[] OpenDialogSelectTextFiles()

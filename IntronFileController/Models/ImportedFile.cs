@@ -12,6 +12,11 @@ namespace IntronFileController.Models
         public string FilePath { get; set; }
         public long SizeBytes { get; set; }
         public string Preview { get; set; } = string.Empty; // conteúdo carregado (ou parcial)
+        public string FirstLines { get; set; }
+        public string LastLines { get; set; }
+        public string KeepLines { get; set; }
+        public string KeepFirstLines { get; set; }
+        public string KeepLastLines { get; set; }
         public DateTime ImportedAt { get; private set; } = DateTime.UtcNow;
     }
 
