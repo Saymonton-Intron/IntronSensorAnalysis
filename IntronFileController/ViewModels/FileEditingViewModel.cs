@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IntronFileController.Common;
+using IntronFileController.Common.Extensions;
 using IntronFileController.Helpers;
 using IntronFileController.Models;
 using IntronFileController.Services;
@@ -21,12 +22,14 @@ namespace IntronFileController.ViewModels
         public event EventHandler NavigateInvoked;
 
         [ObservableProperty]
-        private ObservableCollection<ImportedFile> importedFiles = [];
+        private ObservableCollection<ImportedFileViewModel> importedFiles = [];
 
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand))]
         [NotifyPropertyChangedFor(nameof(LabelsVisibility))]
-        private ImportedFile selectedFile;
+        [NotifyPropertyChangedFor(nameof(FirstLinesTextBox))]
+        [NotifyPropertyChangedFor(nameof(LastLinesTextBox))]
+        private ImportedFileViewModel selectedFile;
 
         [ObservableProperty] private int previewLinesCount = 20;
 
@@ -37,29 +40,87 @@ namespace IntronFileController.ViewModels
         [ObservableProperty] private Visibility restOfContentVisibility = Visibility.Hidden;
         public Visibility LabelsVisibility => SelectedFile != null ? Visibility.Visible : Visibility.Collapsed;
 
-        private string firstLinesTextBox = "100";
+        private string firstLinesTextBox = "0";
         public string FirstLinesTextBox
         {
-            get => firstLinesTextBox.ToString();
+            get
+            {
+                if (SelectedFile is null) return firstLinesTextBox;
+                return SelectedFile.TopCutLine.ToString();
+            }
             set
             {
-                if (!int.TryParse(value, out _))
-                    return;
+                if (!int.TryParse(value, out var cut) || cut < 0) return; // aceita 0+; 0 = não corta nada no topo
 
-                SetProperty(ref firstLinesTextBox, value);
+                if (SelectedFile is not null)
+                {
+                    SelectedFile.TopCutLine = cut; // 1-based
+                }
+                
             }
         }
 
-        private string lastLinesTextBox = "100";
+
+        private string lastLinesTextBox = "0";
         public string LastLinesTextBox
         {
-            get => lastLinesTextBox;
+            get
+            {
+                if (SelectedFile is null) return lastLinesTextBox;
+
+                var total = SelectedFile.Model.Preview.Lines().Length;
+                // offset a partir do fim (o que aparece no TextBox)
+                // regra: bottomCutLine = total - offset
+                var offset = total - SelectedFile.BottomCutLine;
+                return offset.ToString();
+            }
             set
             {
-                if (!int.TryParse(value, out _))
+                if (!int.TryParse(value, out var offset) || offset < 0)
                     return;
 
-                SetProperty(ref lastLinesTextBox, value);
+                if (SelectedFile is not null)
+                {
+                    var total = SelectedFile.Model.Preview.Lines().Length;
+
+                    // Corte no rodapé = (última linha) - offset  (1-based)
+                    // Ex.: total=200, offset=3  -> corte = 197
+                    // clamp para não sair do arquivo
+                    int bottomCutLine = Math.Max(1, total - offset);
+
+                    SelectedFile.BottomCutLine = bottomCutLine;
+
+                    // NÃO mexe no BottomContextCount: ele já dita quantas linhas mostrar.
+                }
+            }
+        }
+        private string topContextTextBox = "5";
+        public string TopContextTextBox
+        {
+            get => topContextTextBox;
+            set
+            {
+                if (!int.TryParse(value, out var ctx) || ctx < 0) return;
+                if (SetProperty(ref topContextTextBox, value))
+                {
+                    if (SelectedFile is not null)
+                        SelectedFile.TopContextCount = ctx;
+                }
+            }
+        }
+
+        private string bottomContextTextBox = "5";
+        public string BottomContextTextBox
+        {
+            get => bottomContextTextBox;
+            set
+            {
+                if (!int.TryParse(value, out var ctx) || ctx < 0) return;
+                if (SetProperty(ref bottomContextTextBox, value))
+                {
+                    if (SelectedFile is not null)
+                        SelectedFile.BottomContextCount = ctx;
+                }
             }
         }
 
@@ -92,52 +153,6 @@ namespace IntronFileController.ViewModels
 
             // chama serviço para importar (faz leitura assíncrona)
             var imported = await fileImportService.ImportTextFilesAsync(textPaths);
-
-            // Corta as primeiras e ultimas linhas de cada arquivo
-            foreach (var file in imported)
-            {
-                char[] charArray = file.Preview.ToCharArray();
-                int linhasPuladas = 0;
-                int linhasTotais = charArray.Where((c) => c == '\r').ToList().Count();
-                int listToFill = 0; // 0 == FirstLines; 1 == KeepLines; 2 == LastLines
-
-                for (int charCount = 0; charCount < charArray.Length; charCount++)
-                {
-                    //switch (listToFill) 
-                    //{
-                    //    case 0: if (linhasPuladas >= int.Parse(FirstLinesTextBox)) listToFill = 1; break;
-                    //    case 1: if (linhasPuladas >= linhasTotais - int.Parse(LastLinesTextBox)) listToFill = 2; break;
-                    //}
-
-                    //if (linhasPuladas >= int.Parse(FirstLinesTextBox))
-                    //{
-                    //    listToFill = 1;
-                    //    if (linhasPuladas >= linhasTotais - int.Parse(LastLinesTextBox))
-                    //    {
-                    //        listToFill = 2;
-                    //    }
-                    //}
-
-                    //if (linhasPuladas >= int.Parse(FirstLinesTextBox)) break;
-                    if (charArray[charCount] == '\r' && charArray[charCount + 1] == '\n')
-                    {
-                        // Quebra de linha
-                        linhasPuladas++;
-                    }
-
-                    switch (listToFill)
-                    {
-                        case 0: file.FirstLines += charArray[charCount]; if (linhasPuladas >= int.Parse(FirstLinesTextBox)) listToFill = 1; break;
-                        case 1: file.KeepLines += charArray[charCount]; if (linhasPuladas >= linhasTotais - int.Parse(LastLinesTextBox)) listToFill = 2; break;
-                        case 2: file.LastLines += charArray[charCount]; break;
-                    }
-                }
-
-                file.FirstLines = file.FirstLines.LastLines(PreviewLinesCount);
-                file.KeepFirstLines = file.KeepLines.FirstLines(PreviewLinesCount);
-                file.KeepLastLines = file.KeepLines.LastLines(PreviewLinesCount);
-                file.LastLines = file.LastLines.FirstLines(PreviewLinesCount);
-            }
 
             // Adiciona os arquivos no fileHandler
             fileHandlerHelper.AddFiles(imported);

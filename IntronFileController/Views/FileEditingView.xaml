@@ -53,7 +53,7 @@
                 <ListBox
                     Grid.Column="0"
                     Margin="-10,0,10,0"
-                    DisplayMemberPath="FileName"
+                    DisplayMemberPath="Model.FileName"
                     ItemsSource="{Binding ImportedFiles}"
                     SelectedItem="{Binding SelectedFile}"
                     Style="{DynamicResource MaterialDesignNavigationListBox}" />
@@ -86,7 +86,7 @@
                                     DockPanel.Dock="Top"
                                     FontSize="14"
                                     FontWeight="Bold"
-                                    Text="{Binding SelectedFile.FileName}" />
+                                    Text="{Binding SelectedFile.Model.FileName}" />
                                 <TextBlock
                                     Margin="0,8,0,0"
                                     DockPanel.Dock="Top"
@@ -94,7 +94,7 @@
                                     Foreground="MediumPurple"
                                     Style="{DynamicResource MaterialDesignBodyLargeTextBlock}"
                                     Text="Caminho:" />
-                                <TextBlock Text="{Binding SelectedFile.FilePath}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SelectedFile.Model.FilePath}" TextWrapping="Wrap" />
                             </StackPanel>
 
                             <!--  Primeiras linhas preview  -->
@@ -117,31 +117,12 @@
 
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <TextBlock Foreground="Gray" TextWrapping="Wrap">
-                                        <!--<Run Text="{Binding SelectedFile.Preview}" />-->
 
-                                        <!--<Run>Parte do texto que será apagado</Run>
+                                        <Run Text="{Binding SelectedFile.FirstLines, Mode=OneWay}" />
                                         <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
-                                        <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
-                                        <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
-                                        <LineBreak />-->
-
-                                        <Run Text="{Binding SelectedFile.FirstLines}" />
                                         <Run Foreground="Red">------------------------------------------------</Run>
-                                        <Run Foreground="Green" Text="{Binding SelectedFile.KeepFirstLines}" />
-
-                                        <!--<LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
                                         <LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
-                                        <LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
-                                        <LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
-                                        <LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>-->
+                                        <Run Foreground="Green" Text="{Binding SelectedFile.KeepFirstLines, Mode=OneWay}" />
 
                                     </TextBlock>
                                 </ScrollViewer>
@@ -173,38 +154,12 @@
 
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <TextBlock Foreground="Gray" TextWrapping="Wrap">
-                                        <!--<Run Text="{Binding SelectedFile.Preview}" />-->
 
-                                        <!--<Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
+                                        <Run Foreground="Green" Text="{Binding SelectedFile.KeepLastLines, Mode=OneWay}" />
                                         <LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
-                                        <LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
-                                        <LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
-                                        <LineBreak />
-                                        <Run Foreground="Green">Parte do texto que PERMANECERÁ</Run>
-                                        <LineBreak />-->
-
-                                        <Run Foreground="Green" Text="{Binding SelectedFile.KeepLastLines}" />
                                         <Run Foreground="Red">------------------------------------------------</Run>
-                                        <Run Text="{Binding SelectedFile.LastLines}" />
-
-
-                                        <!--<LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
                                         <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
-                                        <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
-                                        <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
-                                        <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
-                                        <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>
-                                        <LineBreak />
-                                        <Run>Parte do texto que será apagado</Run>-->
+                                        <Run Text="{Binding SelectedFile.LastLines, Mode=OneWay}" />
 
                                     </TextBlock>
                                 </ScrollViewer>

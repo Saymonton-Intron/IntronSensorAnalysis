@@ -1,4 +1,5 @@
 ﻿using IntronFileController.Models;
+using IntronFileController.ViewModels;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -11,16 +12,16 @@ namespace IntronFileController.Services
 {
     public interface IFileImportService
     {
-        Task<IEnumerable<ImportedFile>> ImportTextFilesAsync(IEnumerable<string> paths);
+        Task<IEnumerable<ImportedFileViewModel>> ImportTextFilesAsync(IEnumerable<string> paths);
         string[] OpenDialogSelectTextFiles();
     }
 
     public class FileImportService : IFileImportService
     {
         // previewMaxChars evita carregar arquivos gigantes no preview (ajuste conforme necessário)
-        public async Task<IEnumerable<ImportedFile>> ImportTextFilesAsync(IEnumerable<string> paths)
+        public async Task<IEnumerable<ImportedFileViewModel>> ImportTextFilesAsync(IEnumerable<string> paths)
         {
-            var list = new List<ImportedFile>();
+            var list = new List<ImportedFileViewModel>();
 
             foreach (var p in paths)
             {
@@ -41,13 +42,13 @@ namespace IntronFileController.Services
                     // LÊ O ARQUIVO TODO
                     string content = await reader.ReadToEndAsync();
 
-                    list.Add(new ImportedFile
+                    list.Add(new(new ImportedFile
                     {
                         FileName = fi.Name,
                         FilePath = fi.FullName,
                         SizeBytes = fi.Length,
                         Preview = content  // agora Preview contém o conteúdo completo
-                    });
+                    }));
                 }
                 catch
                 {

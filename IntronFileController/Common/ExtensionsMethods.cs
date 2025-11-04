@@ -44,7 +44,7 @@ namespace IntronFileController.Common
             int count = 0;
             int pos = 0;
 
-            while (pos < refString.Length && count < 20)
+            while (pos < refString.Length && count < linesCount)
             {
                 if (refString[pos] == newLineChar)
                     count++;
@@ -52,7 +52,38 @@ namespace IntronFileController.Common
                 pos++;
             }
 
-            return refString.Substring(0, pos);
-        }        
+            return refString[..pos];
+        }
+
+        /// <summary>
+        /// Retrieves a specified range of lines from the end of the given text.
+        /// </summary>
+        /// <remarks>This method splits the input text into lines using the specified newline character, then extracts the
+        /// desired range of lines starting from the calculated position. If <paramref name="fromEndStart"/> exceeds the total
+        /// number of lines, the range starts from the beginning of the text.</remarks>
+        /// <param name="text">The input string from which lines are extracted. If <paramref name="text"/> is <see langword="null"/>, an empty
+        /// string is returned.</param>
+        /// <param name="fromEndStart">The number of lines to skip from the end of the text before starting the range. Must be non-negative.</param>
+        /// <param name="count">The number of lines to include in the range. Must be non-negative.</param>
+        /// <param name="newLineChar">The character used to split the text into lines. Defaults to <see langword="'\n'"/>.</param>
+        /// <returns>A string containing the specified range of lines, joined by the newline character. If the range is empty, an empty
+        /// string is returned.</returns>
+        public static string GetLastRange(this string text, int fromEndStart, int count, char newLineChar = '\n')
+        {
+            if (text == null)
+                return string.Empty;
+
+            var lines = text.Split(newLineChar);
+
+            int n = lines.Length;
+
+            // começa em "n - fromEndStart"
+            int startIndex = Math.Max(0, n - fromEndStart);
+
+            // pega "count" linhas dali
+            var slice = lines.Skip(startIndex).Take(count);
+
+            return string.Join("\n", slice);
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using IntronFileController.Models;
+using IntronFileController.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -10,31 +11,31 @@ namespace IntronFileController.Helpers
 {
     public interface IFileHandlerHelper
     {
-        ObservableCollection<ImportedFile> ImportedFiles { get; }
-        void AddFile(ImportedFile file);
-        void AddFiles(IEnumerable<ImportedFile> files);
+        ObservableCollection<ImportedFileViewModel> ImportedFiles { get; }
+        void AddFile(ImportedFileViewModel file);
+        void AddFiles(IEnumerable<ImportedFileViewModel> files);
     }
 
     public class FileHandlerHelper : IFileHandlerHelper
     {
-        public ObservableCollection<ImportedFile> ImportedFiles { get; } = [];
+        public ObservableCollection<ImportedFileViewModel> ImportedFiles { get; } = [];
 
         public FileHandlerHelper()
         {
 
         }
-        public void AddFile(ImportedFile file)
+        public void AddFile(ImportedFileViewModel file)
         {
-            if (!ImportedFiles.Any(x => x.FilePath.Equals(file.FilePath, System.StringComparison.OrdinalIgnoreCase)))
+            if (!ImportedFiles.Any(x => x.Model.FilePath.Equals(file.Model.FilePath, System.StringComparison.OrdinalIgnoreCase)))
                 ImportedFiles.Add(file);
         }
 
-        public void AddFiles(IEnumerable<ImportedFile> files)
+        public void AddFiles(IEnumerable<ImportedFileViewModel> files)
         {
             // Evitar arquivos duplicados
             foreach (var file in files)
             {
-                if (!ImportedFiles.Any(x => x.FilePath.Equals(file.FilePath, System.StringComparison.OrdinalIgnoreCase)))
+                if (!ImportedFiles.Any(x => x.Model.FilePath.Equals(file.Model.FilePath, System.StringComparison.OrdinalIgnoreCase)))
                     AddFile(file);
             }
         }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using IntronFileController.Common;
 
 namespace IntronFileController.Models
 {
@@ -11,12 +12,7 @@ namespace IntronFileController.Models
         public string FileName { get; set; }
         public string FilePath { get; set; }
         public long SizeBytes { get; set; }
-        public string Preview { get; set; } = string.Empty; // conteúdo carregado (ou parcial)
-        public string FirstLines { get; set; }
-        public string LastLines { get; set; }
-        public string KeepLines { get; set; }
-        public string KeepFirstLines { get; set; }
-        public string KeepLastLines { get; set; }
+        public string Preview { get; set; } = string.Empty; // conteúdo carregado completo
         public DateTime ImportedAt { get; private set; } = DateTime.UtcNow;
     }
 
