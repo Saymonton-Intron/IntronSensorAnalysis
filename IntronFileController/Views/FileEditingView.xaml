@@ -194,11 +194,11 @@
                                 Text="{Binding LastLinesTextBox, Mode=TwoWay}"
                                 TextAlignment="Center" />
 
-                            <Button
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Bottom"
-                                Content="Aplicar a todos"
-                                Style="{DynamicResource MaterialDesignFlatLightButton}" />
+                            <Button HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Content="Aplicar a todos"
+                                    Command="{Binding ApplyToAllCommand}"
+                                    Style="{DynamicResource MaterialDesignFlatLightButton}" />
                         </DockPanel>
 
 

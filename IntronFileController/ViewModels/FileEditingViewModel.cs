@@ -178,5 +178,37 @@ namespace IntronFileController.ViewModels
             await fileExportService.ExportAsync(readOnlyList, owner: System.Windows.Application.Current.MainWindow);
         }
         private bool CanExecuteProcessAllCommand() => SelectedFile != null && ImportedFiles.Count > 0; // Alterar depois
+
+        [RelayCommand]
+        private void ApplyToAll()
+        {
+            if (ImportedFiles.Count <= 1 || SelectedFile is null)
+                return;
+
+            // 1) Descobre N = quantas últimas linhas o SelectedFile está mantendo
+            int selTotal = SelectedFile.Model.Preview.Lines().Length;
+
+            // Se BottomCutLine é 1-based e inclusivo (ex.: 1 = primeira linha), então:
+            // N_keep = total - BottomCutLine + 1
+            int nKeepFromEnd = Math.Max(0, selTotal - SelectedFile.BottomCutLine + 1);
+
+            foreach (var file in ImportedFiles)
+            {
+                if (ReferenceEquals(file, SelectedFile)) continue;
+
+                // copia o TopCutLine "como está" (se você também quiser preservar “quantas primeiras linhas” ao invés do índice,
+                // faça um cálculo similar ao do bottom)
+                file.TopCutLine = SelectedFile.TopCutLine;
+
+                // 2) Recalcula o índice de corte para ESTE arquivo,
+                //     de modo que ele também mantenha as mesmas N últimas linhas
+                int total = file.Model.Preview.Lines().Length;
+
+                // índice 1-based do começo do “rabo” (onde começam as últimas N)
+                int cutIndexFromTop = Math.Max(1, total - nKeepFromEnd + 1);
+
+                file.BottomCutLine = cutIndexFromTop; // <<< agora atribui no alvo
+            }
+        }
     }
 }
