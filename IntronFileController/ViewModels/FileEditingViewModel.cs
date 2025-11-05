@@ -31,6 +31,8 @@ namespace IntronFileController.ViewModels
         [NotifyPropertyChangedFor(nameof(LabelsVisibility))]
         [NotifyPropertyChangedFor(nameof(FirstLinesTextBox))]
         [NotifyPropertyChangedFor(nameof(LastLinesTextBox))]
+        [NotifyPropertyChangedFor(nameof(TextInitLabelVisibility))]
+        [NotifyPropertyChangedFor(nameof(TextEndLabelVisibility))]
         private ImportedFileViewModel selectedFile;
 
         [ObservableProperty] private int previewLinesCount = 20;
@@ -41,6 +43,8 @@ namespace IntronFileController.ViewModels
 
         [ObservableProperty] private Visibility addCardVisibility = Visibility.Visible;
         [ObservableProperty] private Visibility restOfContentVisibility = Visibility.Hidden;
+        public Visibility TextInitLabelVisibility => SelectedFile.TopContextCount >= SelectedFile.TopCutLine ? Visibility.Visible : Visibility.Hidden;
+        public Visibility TextEndLabelVisibility => SelectedFile.BottomContextCount >= SelectedFile.Model.Preview.Lines().Length - SelectedFile.BottomCutLine ? Visibility.Visible : Visibility.Hidden;
         public Visibility LabelsVisibility => SelectedFile != null ? Visibility.Visible : Visibility.Collapsed;
 
         private string firstLinesTextBox = "0";
@@ -58,8 +62,11 @@ namespace IntronFileController.ViewModels
                 if (SelectedFile is not null)
                 {
                     SelectedFile.TopCutLine = cut; // 1-based
+
+                    OnPropertyChanged(nameof(TextInitLabelVisibility));
+                    OnPropertyChanged(nameof(TextEndLabelVisibility));
                 }
-                
+
             }
         }
 
@@ -92,7 +99,8 @@ namespace IntronFileController.ViewModels
                     int bottomCutLine = Math.Max(1, total - offset);
 
                     SelectedFile.BottomCutLine = bottomCutLine;
-
+                    OnPropertyChanged(nameof(TextInitLabelVisibility));
+                    OnPropertyChanged(nameof(TextEndLabelVisibility));
                     // NÃO mexe no BottomContextCount: ele já dita quantas linhas mostrar.
                 }
             }
@@ -108,6 +116,8 @@ namespace IntronFileController.ViewModels
                 {
                     if (SelectedFile is not null)
                         SelectedFile.TopContextCount = ctx;
+                    OnPropertyChanged(nameof(TextInitLabelVisibility));
+                    OnPropertyChanged(nameof(TextEndLabelVisibility));
                 }
             }
         }
@@ -123,6 +133,9 @@ namespace IntronFileController.ViewModels
                 {
                     if (SelectedFile is not null)
                         SelectedFile.BottomContextCount = ctx;
+
+                    OnPropertyChanged(nameof(TextInitLabelVisibility));
+                    OnPropertyChanged(nameof(TextEndLabelVisibility));
                 }
             }
         }
