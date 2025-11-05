@@ -105,20 +105,21 @@ namespace IntronFileController.ViewModels
                 }
             }
         }
-        private string topContextTextBox = "5";
+        //private string topContextTextBox = "5";
         public string TopContextTextBox
         {
-            get => topContextTextBox;
+            get => SelectedFile.TopContextCount.ToString();
             set
             {
                 if (!int.TryParse(value, out var ctx) || ctx < 0) return;
-                if (SetProperty(ref topContextTextBox, value))
-                {
-                    if (SelectedFile is not null)
-                        SelectedFile.TopContextCount = ctx;
-                    OnPropertyChanged(nameof(TextInitLabelVisibility));
-                    OnPropertyChanged(nameof(TextEndLabelVisibility));
-                }
+
+                if (SelectedFile is not null)
+                    SelectedFile.TopContextCount = ctx;
+                OnPropertyChanged(nameof(TopContextTextBox));
+
+                OnPropertyChanged(nameof(TextInitLabelVisibility));
+                OnPropertyChanged(nameof(TextEndLabelVisibility));
+                
             }
         }
 

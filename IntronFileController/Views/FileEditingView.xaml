@@ -45,7 +45,7 @@
 
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="1*" />
                     <ColumnDefinition Width="3*" />
                 </Grid.ColumnDefinitions>
 
@@ -178,40 +178,82 @@
                         </Grid>
 
                         <!--  Configurações da pagina  -->
-                        <DockPanel Grid.Row="1">
-                            <TextBlock
-                                VerticalAlignment="Bottom"
-                                Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
-                                Text="Remover Primeiras: " />
-                            <TextBox
-                                MinWidth="35"
-                                MaxWidth="50"
-                                FontSize="14"
-                                Style="{DynamicResource MaterialDesignFloatingHintTextBox}"
-                                Text="{Binding FirstLinesTextBox, Mode=TwoWay}"
-                                TextAlignment="Center" />
+                        <StackPanel Grid.Row="1">
 
-                            <TextBlock
-                                Margin="10,0,0,0"
-                                VerticalAlignment="Bottom"
-                                Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
-                                Text="Remover Ultimas: " />
-                            <TextBox
-                                MinWidth="35"
-                                MaxWidth="50"
-                                FontSize="14"
-                                Style="{DynamicResource MaterialDesignFloatingHintTextBox}"
-                                Text="{Binding LastLinesTextBox, Mode=TwoWay}"
-                                TextAlignment="Center" />
 
-                            <Button
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Bottom"
-                                Command="{Binding ApplyToAllCommand}"
-                                Content="Aplicar a todos"
-                                Style="{DynamicResource MaterialDesignFlatLightButton}" />
-                        </DockPanel>
+                            <DockPanel>
+                                <TextBlock
+                                    VerticalAlignment="Bottom"
+                                    Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
+                                    Text="Remover Primeiras: " />
+                                <TextBox
+                                    MinWidth="35"
+                                    MaxWidth="50"
+                                    FontSize="14"
+                                    Style="{DynamicResource MaterialDesignFloatingHintTextBox}"
+                                    Text="{Binding FirstLinesTextBox, Mode=TwoWay}"
+                                    TextAlignment="Center" />
 
+                                <TextBlock
+                                    Margin="20,0,0,0"
+                                    VerticalAlignment="Bottom"
+                                    Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
+                                    Text="Remover Ultimas: " />
+                                <TextBox
+                                    MinWidth="35"
+                                    MaxWidth="50"
+                                    FontSize="14"
+                                    Style="{DynamicResource MaterialDesignFloatingHintTextBox}"
+                                    Text="{Binding LastLinesTextBox, Mode=TwoWay}"
+                                    TextAlignment="Center" />
+
+                                <Button
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Command="{Binding ApplyToAllCommand}"
+                                    Content="Aplicar a todos"
+                                    Style="{DynamicResource MaterialDesignFlatLightButton}" />
+                            </DockPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,0,0"
+                                    VerticalAlignment="Bottom"
+                                    Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
+                                    Text="Mostrar número de linhas (Sup): " />
+                                <TextBox
+                                    MinWidth="35"
+                                    MaxWidth="50"
+                                    HorizontalAlignment="Left"
+                                    FontSize="14"
+                                    Style="{DynamicResource MaterialDesignFloatingHintTextBox}"
+                                    Text="{Binding TopContextTextBox, Mode=TwoWay}"
+                                    TextAlignment="Center" />
+
+                                <TextBlock Text="?"
+                                           VerticalAlignment="Bottom"
+                                           FontWeight="Bold"
+                                           Foreground="Gray"
+                                           ToolTip="Número máximo de linhas que aparecerão antes e depois da linha vermelha, para o corte superior." />
+                                <TextBlock
+                                    Margin="20,0,0,0"
+                                    VerticalAlignment="Bottom"
+                                    Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
+                                    Text="Mostrar número de linhas (Inf): " />
+                                <TextBox
+                                    MinWidth="35"
+                                    MaxWidth="50"
+                                    HorizontalAlignment="Left"
+                                    FontSize="14"
+                                    Style="{DynamicResource MaterialDesignFloatingHintTextBox}"
+                                    Text="{Binding BottomContextTextBox, Mode=TwoWay}"
+                                    TextAlignment="Center" />
+                                <TextBlock Text="?"
+                                           VerticalAlignment="Bottom"
+                                           FontWeight="Bold"
+                                           Foreground="Gray"
+                                           ToolTip="Número máximo de linhas que aparecerão antes e depois da linha vermelha, para o corte inferior." />
+                            </StackPanel>
+                        </StackPanel>
 
 
                         <TextBlock
