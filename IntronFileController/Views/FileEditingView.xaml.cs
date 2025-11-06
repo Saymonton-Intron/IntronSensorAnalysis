@@ -1,4 +1,7 @@
 ﻿using IntronFileController.ViewModels;
+using OxyPlot;
+using OxyPlot.Annotations;
+using OxyPlot.Axes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,7 +24,7 @@ namespace IntronFileController.Views
     /// </summary>
     public partial class FileEditingView : UserControl
     {
-        private readonly FileEditingViewModel VM;
+        public FileEditingViewModel VM { get; private set; }
         public event EventHandler NavigateInvoked;
         public FileEditingView(FileEditingViewModel viewModel)
         {

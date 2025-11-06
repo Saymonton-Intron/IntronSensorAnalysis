@@ -30,10 +30,11 @@ public partial class App : Application
                 services.AddTransient<FileEditingViewModel>();
 
                 // Helpers
-                services.AddSingleton<IThemeHelper, ThemeHelper>();
                 services.AddSingleton<IFileHandlerHelper, FileHandlerHelper>();
+                services.AddSingleton<IOxyThemeHelper, OxyThemeHelper>();
 
                 // Services
+                services.AddSingleton<IThemeService, ThemeService>();
                 services.AddSingleton<IFileImportService, FileImportService>();
                 services.AddSingleton<IFileExportService, FileExportService>();
                 services.AddSingleton<ServiceProvider>(services.BuildServiceProvider());

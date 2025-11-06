@@ -6,6 +6,9 @@ using IntronFileController.Helpers;
 using IntronFileController.Models;
 using IntronFileController.Services;
 using Microsoft.Win32;
+using OxyPlot;
+using OxyPlot.Axes;
+using OxyPlot.Series;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -40,11 +43,13 @@ namespace IntronFileController.ViewModels
         private readonly IFileHandlerHelper fileHandlerHelper;
         private readonly IFileImportService fileImportService;
         private readonly IFileExportService fileExportService;
+        private readonly IOxyThemeHelper oxyThemeHelper;
+        private readonly IThemeService themeService;
 
         [ObservableProperty] private Visibility addCardVisibility = Visibility.Visible;
         [ObservableProperty] private Visibility restOfContentVisibility = Visibility.Hidden;
-        public Visibility TextInitLabelVisibility => SelectedFile.TopContextCount >= SelectedFile.TopCutLine ? Visibility.Visible : Visibility.Hidden;
-        public Visibility TextEndLabelVisibility => SelectedFile.BottomContextCount >= SelectedFile.Model.Preview.Lines().Length - SelectedFile.BottomCutLine ? Visibility.Visible : Visibility.Hidden;
+        public Visibility TextInitLabelVisibility => SelectedFile?.TopContextCount >= SelectedFile?.TopCutLine ? Visibility.Visible : Visibility.Hidden;
+        public Visibility TextEndLabelVisibility => SelectedFile?.BottomContextCount >= SelectedFile?.Model.Preview.Lines().Length - SelectedFile?.BottomCutLine ? Visibility.Visible : Visibility.Hidden;
         public Visibility LabelsVisibility => SelectedFile != null ? Visibility.Visible : Visibility.Collapsed;
 
         private string firstLinesTextBox = "0";
@@ -141,11 +146,28 @@ namespace IntronFileController.ViewModels
             }
         }
 
-        public FileEditingViewModel(IFileHandlerHelper _fileHandlerHelper, IFileImportService _fileImportService, IFileExportService _fileExportService)
+
+        public PlotModel PlotModel { get; private set; } = new() { Title = "Distância do Laser vs. Tempo" };
+        public PlotController PlotController { get; private set; } = new();
+        public LineSeries _lineSeries { get; private set; } = new();
+        public List<DataPoint> PlotPoints { get; private set; } = [];
+        private int _maxSecsPlotPoint = 10;
+        private double _zeroOffset = 0;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsShowingMarkersText))]
+        private bool _isShowingMarkers = false;
+        public string IsShowingMarkersText
+        {
+            get => !IsShowingMarkers ? "Mostrar pontos" : "Esconder pontos";
+        }
+        public FileEditingViewModel(IFileHandlerHelper _fileHandlerHelper, IFileImportService _fileImportService, IFileExportService _fileExportService, IOxyThemeHelper _oxyThemeHelper, IThemeService _themeService)
         {
             fileHandlerHelper = _fileHandlerHelper;
             fileImportService = _fileImportService;
             fileExportService = _fileExportService;
+            oxyThemeHelper = _oxyThemeHelper;
+            themeService = _themeService;
             ImportedFiles = fileHandlerHelper.ImportedFiles;
             SelectedFile = ImportedFiles?.FirstOrDefault()!;
 
@@ -153,7 +175,153 @@ namespace IntronFileController.ViewModels
             {
                 RemoveSelectedCommand.NotifyCanExecuteChanged();
             };
+
+            SetupPlotModel();
+            oxyThemeHelper.Apply(PlotModel, themeService.Current);
+            themeService.ThemeChanged += (sender, baseTheme) => oxyThemeHelper.Apply(PlotModel, baseTheme);
         }
+
+        private void SetupPlotModel()
+        {
+            PlotController.UnbindAll();
+            PlotController.BindMouseEnter(PlotCommands.HoverSnapTrack);
+
+            var controller = PlotController;
+
+            // --- Scroll normal = Pan horizontal (X) ---
+            controller.BindMouseWheel(
+                OxyModifierKeys.None,
+                new DelegatePlotCommand<OxyMouseWheelEventArgs>(
+                    (view, ctl, args) =>
+                    {
+                        double delta = args.Delta > 0 ? -1 : 1; // up = direita, down = esquerda
+                        const double step = 50;
+                        foreach (var axis in view.ActualModel.Axes.Where(a => a.Position == AxisPosition.Bottom))
+                        {
+                            axis.Pan(delta * step);
+                        }
+                        view.InvalidatePlot(false);
+                        args.Handled = true;
+                    }));
+
+            // --- Ctrl + Scroll = Zoom no eixo X ---
+            controller.BindMouseWheel(
+                OxyModifierKeys.Control,
+                new DelegatePlotCommand<OxyMouseWheelEventArgs>(
+                    (view, ctl, args) =>
+                    {
+                        double zoomFactor = args.Delta > 0 ? 1.2 : 0.8;
+                        foreach (var axis in view.ActualModel.Axes.Where(a => a.Position == AxisPosition.Bottom))
+                        {
+                            double x = axis.InverseTransform(args.Position.X);
+                            axis.ZoomAt(zoomFactor, x);
+                        }
+                        if (zoomFactor >= 1)
+                        {
+                            _lineSeries.MarkerType = MarkerType.Circle;
+                            IsShowingMarkers = true;
+                            ShowHideMarkersCommand.NotifyCanExecuteChanged();
+                        }
+                        else
+                        {
+                            _lineSeries.MarkerType = MarkerType.None;
+                            IsShowingMarkers = false;
+                            ShowHideMarkersCommand.NotifyCanExecuteChanged();
+                        }
+
+                        view.InvalidatePlot(false);
+                        args.Handled = true;
+                    }));
+
+            // --- Shift + Scroll = Pan vertical (Y) ---
+            controller.BindMouseWheel(
+                OxyModifierKeys.Shift,
+                new DelegatePlotCommand<OxyMouseWheelEventArgs>(
+                    (view, ctl, args) =>
+                    {
+                        double delta = args.Delta > 0 ? 1 : -1; // up = cima, down = baixo
+                        const double step = 50;
+                        foreach (var axis in view.ActualModel.Axes.Where(a => a.Position == AxisPosition.Left))
+                        {
+                            axis.Pan(delta * step);
+                        }
+                        view.InvalidatePlot(false);
+                        args.Handled = true;
+                    }));
+
+            // 🖱 Botão do meio = Pan livre (X e Y ao mesmo tempo)
+            controller.BindMouseDown(OxyMouseButton.Middle, PlotCommands.PanAt);
+
+            // Clique esquerdo/direito → resetar todos os eixos
+            var resetCommand = new DelegatePlotCommand<OxyMouseDownEventArgs>(
+                (view, ctl, args) =>
+                {
+                    view.ActualModel.ResetAllAxes();
+                    view.InvalidatePlot(false);
+                    args.Handled = true;
+                });
+
+            controller.BindMouseDown(OxyMouseButton.Left, resetCommand);
+            controller.BindMouseDown(OxyMouseButton.Right, resetCommand);
+            //controller.BindMouseDown(OxyMouseButton.Middle, resetCommand);
+
+            var now = DateTime.Now;
+
+            PlotModel.Axes.Add(new DateTimeAxis
+            {
+                Position = AxisPosition.Bottom,
+                Title = "Tempo",
+                StringFormat = "HH:mm:ss.fff",
+                MajorGridlineStyle = LineStyle.Solid,
+                MinorGridlineStyle = LineStyle.Dot,
+                Minimum = DateTimeAxis.ToDouble(now),
+                Maximum = DateTimeAxis.ToDouble(now.AddSeconds(_maxSecsPlotPoint))
+            });
+
+            PlotModel.Axes.Add(new LinearAxis
+            {
+                Position = AxisPosition.Left,
+                Title = "Distância (mm)",
+                MajorGridlineStyle = LineStyle.Solid,
+                MinorGridlineStyle = LineStyle.Dot
+            });
+
+            _lineSeries = new LineSeries
+            {
+                Title = "Distância (mm)",
+                StrokeThickness = 2,
+                MarkerType = MarkerType.None,
+                MarkerSize = 5,
+                MarkerStroke = OxyColors.Green,
+                MarkerFill = OxyColors.White,
+                MarkerStrokeThickness = 1.2,
+                ItemsSource = PlotPoints,
+                TrackerFormatString = "Tempo: {2:HH:mm:ss.fff}\nDistância: {4:0} mm",
+                CanTrackerInterpolatePoints = false
+            };
+
+            PlotModel.Series.Add(_lineSeries);
+        }
+        [RelayCommand(CanExecute = nameof(CanShowHideMarkers))]
+        private void ShowHideMarkers()
+        {
+            if (_lineSeries == null) return;
+
+            if (IsShowingMarkers)
+            {
+
+                _lineSeries.MarkerType = MarkerType.None;
+                IsShowingMarkers = false;
+            }
+            else
+            {
+                _lineSeries.MarkerType = MarkerType.Circle;
+                IsShowingMarkers = true;
+            }
+            PlotModel?.InvalidatePlot(true);
+        }
+        private bool CanShowHideMarkers() => PlotPoints.Count() > 0;
+
 
         [RelayCommand]
         private void NavigateBack()

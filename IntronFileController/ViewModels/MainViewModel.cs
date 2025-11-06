@@ -15,20 +15,14 @@ namespace IntronFileController.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private readonly IThemeHelper themeHelper;
+    private readonly IThemeService themeService;
+    private readonly IOxyThemeHelper oxyThemeHelper;
     private readonly IFileImportService fileImportService;
     private readonly ServiceProvider serviceProvider;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TitleText))]
     private UserControl currentUC;
-    partial void OnCurrentUCChanged(UserControl value)
-    {
-        if (value is HomeView home)
-        {
-            home.NavigateInvoked += Home_NavigateInvoked;
-        }
-    }
     partial void OnCurrentUCChanged(UserControl? oldValue, UserControl newValue)
     {
         if (newValue is HomeView home)
@@ -43,10 +37,20 @@ public partial class MainViewModel : ObservableObject
         if (newValue is FileEditingView fileEdit)
         {
             fileEdit.NavigateInvoked += FileEditing_NavigateInvoked;
+            themeService.ThemeChanged += ThemeService_ThemeChanged;
         }
         else if (oldValue is FileEditingView fileEdit1)
         {
             fileEdit1.NavigateInvoked -= FileEditing_NavigateInvoked;
+            themeService.ThemeChanged -= ThemeService_ThemeChanged;
+        }
+    }
+
+    private void ThemeService_ThemeChanged(object? sender, BaseTheme theme)
+    {
+        if (CurrentUC is FileEditingView view)
+        {
+            oxyThemeHelper.Apply(view.VM.PlotModel, theme);            
         }
     }
 
@@ -69,13 +73,14 @@ public partial class MainViewModel : ObservableObject
         };
 
     public PackIconKind CurrentThemeIcon =>
-        themeHelper.GetCurrentBaseTheme() == BaseTheme.Dark
+        themeService.Current == BaseTheme.Dark
         ? PackIconKind.MoonWaxingCrescent
         : PackIconKind.WhiteBalanceSunny;
 
-    public MainViewModel(IThemeHelper _themeHelper, IFileImportService _fileImportService, ServiceProvider _serviceProvider)
+    public MainViewModel(IThemeService _themeService, IOxyThemeHelper _oxyThemeHelper, IFileImportService _fileImportService, ServiceProvider _serviceProvider)
     {
-        themeHelper = _themeHelper;
+        themeService = _themeService;
+        oxyThemeHelper = _oxyThemeHelper;
         fileImportService = _fileImportService;
         serviceProvider = _serviceProvider;
 
@@ -83,7 +88,7 @@ public partial class MainViewModel : ObservableObject
 
         Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            themeHelper.SetDarkTheme();
+            themeService.Set(BaseTheme.Dark);
             OnPropertyChanged(nameof(CurrentThemeIcon));
         });
     }
@@ -91,7 +96,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ChangeTheme()
     {
-        themeHelper.ToggleTheme();
+        themeService.Toggle();
         OnPropertyChanged(nameof(CurrentThemeIcon));
     }
 
