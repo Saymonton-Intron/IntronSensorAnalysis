@@ -291,10 +291,12 @@
         </DockPanel>
 
         <Grid Grid.RowSpan="3" Grid.Column="1">
-            <oxy:PlotView
-                Margin="0,10,0,0"
-                Controller="{Binding PlotController}"
-                Model="{Binding PlotModel}" />
+            <oxy:PlotView Margin="0,10,0,0"
+                          xmlns:behaviors="clr-namespace:IntronFileController.OxyBehaviors"
+                          Controller="{Binding PlotController}"
+                          Model="{Binding PlotModel}"
+                          behaviors:RangeSelectionBehavior.IsEnabled="True"
+                          behaviors:RangeSelectionBehavior.RangeSelectedCommand="{Binding RangeSelectedCommand, FallbackValue={x:Null}}" />
         </Grid>
     </Grid>
 </UserControl>

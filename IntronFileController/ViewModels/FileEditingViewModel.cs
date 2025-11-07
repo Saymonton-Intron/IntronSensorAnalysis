@@ -252,43 +252,56 @@ namespace IntronFileController.ViewModels
             // 🖱 Botão do meio = Pan livre (X e Y ao mesmo tempo)
             controller.BindMouseDown(OxyMouseButton.Middle, PlotCommands.PanAt);
 
-            // Clique esquerdo/direito → resetar todos os eixos
-            var resetCommand = new DelegatePlotCommand<OxyMouseDownEventArgs>(
-                (view, ctl, args) =>
-                {
-                    view.ActualModel.ResetAllAxes();
-                    view.InvalidatePlot(false);
-                    args.Handled = true;
-                });
+            //// Clique esquerdo/direito → resetar todos os eixos
+            //var resetCommand = new DelegatePlotCommand<OxyMouseDownEventArgs>(
+            //    (view, ctl, args) =>
+            //    {
+            //        view.ActualModel.ResetAllAxes();
+            //        view.InvalidatePlot(false);
+            //        args.Handled = true;
+            //    });
 
-            controller.BindMouseDown(OxyMouseButton.Left, resetCommand);
-            controller.BindMouseDown(OxyMouseButton.Right, resetCommand);
+            controller.Bind(
+                new OxyMouseDownGesture(OxyMouseButton.Left, clickCount: 2),
+                PlotCommands.ResetAt);
+
+            //controller.BindMouseDown(OxyMouseButton.Left, resetCommand);
+            //controller.BindMouseDown(OxyMouseButton.Right, resetCommand);
             //controller.BindMouseDown(OxyMouseButton.Middle, resetCommand);
 
             var now = DateTime.Now;
 
-            PlotModel.Axes.Add(new DateTimeAxis
-            {
-                Position = AxisPosition.Bottom,
-                Title = "Tempo",
-                StringFormat = "HH:mm:ss.fff",
-                MajorGridlineStyle = LineStyle.Solid,
-                MinorGridlineStyle = LineStyle.Dot,
-                Minimum = DateTimeAxis.ToDouble(now),
-                Maximum = DateTimeAxis.ToDouble(now.AddSeconds(_maxSecsPlotPoint))
-            });
+            //PlotModel.Axes.Add(new DateTimeAxis
+            //{
+            //    Position = AxisPosition.Bottom,
+            //    Title = "Amostras",
+            //    //StringFormat = "HH:mm:ss.fff",
+            //    MajorGridlineStyle = LineStyle.Solid,
+            //    MinorGridlineStyle = LineStyle.Dot,
+            //    Minimum = 0,
+            //    Maximum = DateTimeAxis.ToDouble(now.AddSeconds(_maxSecsPlotPoint))
+            //    //Minimum = DateTimeAxis.ToDouble(now),
+            //    //Maximum = DateTimeAxis.ToDouble(now.AddSeconds(_maxSecsPlotPoint))
+            //});
 
             PlotModel.Axes.Add(new LinearAxis
             {
+                Position = AxisPosition.Bottom,
+                Title = "Amostras",
+                MajorGridlineStyle = LineStyle.Solid,
+                MinorGridlineStyle = LineStyle.Dot
+            });
+            PlotModel.Axes.Add(new LinearAxis
+            {
                 Position = AxisPosition.Left,
-                Title = "Distância (mm)",
+                Title = "Gravidade (g)",
                 MajorGridlineStyle = LineStyle.Solid,
                 MinorGridlineStyle = LineStyle.Dot
             });
 
             _lineSeries = new LineSeries
             {
-                Title = "Distância (mm)",
+                Title = "Eixo Vertical (g)",
                 StrokeThickness = 2,
                 MarkerType = MarkerType.None,
                 MarkerSize = 5,
@@ -301,6 +314,17 @@ namespace IntronFileController.ViewModels
             };
 
             PlotModel.Series.Add(_lineSeries);
+        }
+
+        [RelayCommand]
+        private void RangeSelected((double Min, double Max) range)
+        {
+            // Exemplo: só loga / aplica zoom / filtra / abre diálogo...
+            var (min, max) = range;
+            // Aplicar zoom no eixo X:
+            var xAxis = PlotModel.DefaultXAxis ?? PlotModel.Axes.First(a => a.IsHorizontal());
+            xAxis.Zoom(min, max);
+            PlotModel.InvalidatePlot(false);
         }
         [RelayCommand(CanExecute = nameof(CanShowHideMarkers))]
         private void ShowHideMarkers()
