@@ -209,17 +209,22 @@ namespace IntronFileController.ViewModels
 
         private void ApplyPlotSelectionToAxis(double min, double max)
         {
-            var xAxis = PlotModel.DefaultXAxis ?? PlotModel.Axes.First(a => a.IsHorizontal());
-            if (xAxis != null)
-            {
-                // avoid NaN
-                if (double.IsNaN(min) || double.IsNaN(max)) return;
-                // ensure min <= max
-                if (min > max) (min, max) = (max, min);
-                xAxis.Zoom(min, max);
-                PlotModel.InvalidatePlot(false);
-                // start debounce, but rebuild already called by callers
-            }
+            // Previously this method performed axis.Zoom to apply the selection to the X axis.
+            // Change: do NOT change axis zoom here. Only update internal selection state and invalidate plot.
+
+            // avoid NaN
+            if (double.IsNaN(min) || double.IsNaN(max)) return;
+            // ensure min <= max
+            if (min > max) (min, max) = (max, min);
+
+            // Update internal selection values (this will also update the text properties via property changed handlers)
+            PlotSelectionMin = min;
+            PlotSelectionMax = max;
+
+            // Repaint so UI (e.g. any overlays) can reflect selection change without changing axis
+            PlotModel.InvalidatePlot(false);
+
+            // Note: callers typically call RebuildPlotForRange(...) themselves when they want to recalc points.
         }
 
         [ObservableProperty]
@@ -280,7 +285,7 @@ namespace IntronFileController.ViewModels
                         }
                         PlotSelectionMin = v;
                         ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
-                        RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+                        // Do not rebuild points or change axis — keep visible graph as-is
                     }
                 }
                 if (e.PropertyName == "PlotSelectionMaxText")
@@ -294,7 +299,7 @@ namespace IntronFileController.ViewModels
                         }
                         PlotSelectionMax = v;
                         ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
-                        RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+                        // Do not rebuild points or change axis — keep visible graph as-is
                     }
                 }
             };
@@ -667,13 +672,13 @@ namespace IntronFileController.ViewModels
         {
             // Exemplo: só loga / aplica zoom / filtra / abre diálogo...
             var (min, max) = range;
-            // Aplicar zoom no eixo X:
-            var xAxis = PlotModel.DefaultXAxis ?? PlotModel.Axes.First(a => a.IsHorizontal());
-            xAxis.Zoom(min, max);
-            PlotModel.InvalidatePlot(false);
 
-            // também força rebuild imediato da janela selecionada
-            RebuildPlotForRange(min, max);
+            // Change: do not change axis zoom or plotted points when user selects a range via graph/UI.
+            // Only update internal selection values so UI can use them, but keep the current visible graph unchanged.
+            PlotSelectionMin = min;
+            PlotSelectionMax = max;
+
+            // Do not rebuild plot or change axis here. The plot remains displayed as-is.
         }
         [RelayCommand(CanExecute = nameof(CanShowHideMarkers))]
         private void ShowHideMarkers()
@@ -801,14 +806,14 @@ namespace IntronFileController.ViewModels
             double maxIndex = Math.Max(0, SelectedFile.ZMeasurements.Count - 1);
             PlotSelectionMin = Math.Min(maxIndex, PlotSelectionMin + step);
             ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
-            RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+            // Do not rebuild or change visible plotted points
         }
         [RelayCommand]
         private void DecreasePlotMin(int step = 1)
         {
             PlotSelectionMin = Math.Max(0, PlotSelectionMin - step);
             ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
-            RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+            // Do not rebuild or change visible plotted points
         }
 
         [RelayCommand]
@@ -818,14 +823,14 @@ namespace IntronFileController.ViewModels
             double maxIndex = Math.Max(0, SelectedFile.ZMeasurements.Count - 1);
             PlotSelectionMax = Math.Min(maxIndex, PlotSelectionMax + step);
             ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
-            RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+            // Do not rebuild or change visible plotted points
         }
         [RelayCommand]
         private void DecreasePlotMax(int step = 1)
         {
             PlotSelectionMax = Math.Max(0, PlotSelectionMax - step);
             ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
-            RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+            // Do not rebuild or change visible plotted points
         }
     }
 }
