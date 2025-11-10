@@ -1,13 +1,16 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using IntronFileController.Common.Extensions;
 using IntronFileController.Models;
+using System.Collections.ObjectModel;
 
 namespace IntronFileController.ViewModels;
 
 public partial class ImportedFileViewModel : ObservableObject
 {
     public ImportedFile Model { get; }
-
+    [ObservableProperty] private ObservableCollection<double> zMeasurements = [];
+    [ObservableProperty] private ObservableCollection<double> xMeasurements = [];
+    [ObservableProperty] private ObservableCollection<double> yMeasurements = [];
     public ImportedFileViewModel(ImportedFile model)
     {
         Model = model;
@@ -17,6 +20,16 @@ public partial class ImportedFileViewModel : ObservableObject
         TopContextCount = 20;       // qtas linhas pegar (antes e depois)
         BottomCutLine = Model.Preview.Lines().Length;       // linha alvo fundo (1-based)
         BottomContextCount = 20;
+
+        // Preencher lista de leituras
+        foreach (var line in Model.Preview.Split(["\r\n"], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var p = line.Split(';'); // 0 é o index
+
+            ZMeasurements.Add(double.Parse(p[1]));
+            XMeasurements.Add(double.Parse(p[2]));
+            YMeasurements.Add(double.Parse(p[3]));
+        }
     }
 
     //----------- TOPO -----------

@@ -37,6 +37,23 @@ namespace IntronFileController.ViewModels
         [NotifyPropertyChangedFor(nameof(TextInitLabelVisibility))]
         [NotifyPropertyChangedFor(nameof(TextEndLabelVisibility))]
         private ImportedFileViewModel selectedFile;
+        partial void OnSelectedFileChanged(ImportedFileViewModel value)
+        {
+            if (value == null) return;
+            if (value.ZMeasurements.Count == value.YMeasurements.Count && value.YMeasurements.Count == value.XMeasurements.Count)
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    for (int i = 0; i < value.ZMeasurements.Count; i++)
+                    {
+                        PlotPointsZ.Add(new(i, value.ZMeasurements[i]));
+                        PlotPointsX.Add(new(i, value.XMeasurements[i]));
+                        PlotPointsY.Add(new(i, value.YMeasurements[i]));
+                    }
+                    PlotModel.InvalidatePlot(true);
+                });
+            }
+        }
 
         [ObservableProperty] private int previewLinesCount = 20;
 
@@ -150,7 +167,9 @@ namespace IntronFileController.ViewModels
         public PlotModel PlotModel { get; private set; } = new() { Title = "Acelerômetro triaxial" };
         public PlotController PlotController { get; private set; } = new();
         public LineSeries _lineSeries { get; private set; } = new();
-        public List<DataPoint> PlotPoints { get; private set; } = [];
+        public List<DataPoint> PlotPointsZ { get; private set; } = [];
+        public List<DataPoint> PlotPointsX { get; private set; } = [];
+        public List<DataPoint> PlotPointsY { get; private set; } = [];
         private int _maxSecsPlotPoint = 10;
         private double _zeroOffset = 0;
 
@@ -312,8 +331,8 @@ namespace IntronFileController.ViewModels
                 MarkerStroke = OxyColors.Green,
                 MarkerFill = OxyColors.White,
                 MarkerStrokeThickness = 1.2,
-                ItemsSource = PlotPoints,
-                TrackerFormatString = "Tempo: {2:HH:mm:ss.fff}\nDistância: {4:0} mm",
+                ItemsSource = PlotPointsZ,
+                TrackerFormatString = "Amostra {0}\nValor {4:000.0}g",
                 CanTrackerInterpolatePoints = false
             };
 
@@ -348,7 +367,7 @@ namespace IntronFileController.ViewModels
             }
             PlotModel?.InvalidatePlot(true);
         }
-        private bool CanShowHideMarkers() => PlotPoints.Count() > 0;
+        private bool CanShowHideMarkers() => PlotPointsZ.Count() > 0;
 
 
         [RelayCommand]

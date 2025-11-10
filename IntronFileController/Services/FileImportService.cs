@@ -1,4 +1,6 @@
-﻿using IntronFileController.Models;
+﻿using IntronFileController.Common;
+using IntronFileController.Common.Extensions;
+using IntronFileController.Models;
 using IntronFileController.ViewModels;
 using Microsoft.Win32;
 using System;
@@ -41,14 +43,19 @@ namespace IntronFileController.Services
 
                     // LÊ O ARQUIVO TODO
                     string content = await reader.ReadToEndAsync();
+                    if (content.Lines().Length > 21) // Tem que ter o header
+                    {                        
+                        list.Add(new(new ImportedFile
+                        {
+                            FileName = fi.Name,
+                            FilePath = fi.FullName,
+                            SizeBytes = fi.Length,
+                            FileHeader = content.FirstLines(21),
+                            Preview = content.LastLines(content.Lines().Length - 21)  // agora Preview contém apenas os dados
+                        }));
+                    }
 
-                    list.Add(new(new ImportedFile
-                    {
-                        FileName = fi.Name,
-                        FilePath = fi.FullName,
-                        SizeBytes = fi.Length,
-                        Preview = content  // agora Preview contém o conteúdo completo
-                    }));
+                    
                 }
                 catch
                 {
