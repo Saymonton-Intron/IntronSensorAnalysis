@@ -2,6 +2,7 @@
 using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
+using OxyPlot.SkiaSharp.Wpf;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,6 +33,27 @@ namespace IntronFileController.Views
 
             VM = viewModel;
             DataContext = viewModel;
+
+            // Attach the PlotModel to the PlotView at runtime to avoid model reuse errors in designer
+            try
+            {
+                PlotViewControl.Model = viewModel.PlotModel;
+            }
+            catch
+            {
+                // ignore
+            }
+
+            // ensure we detach the model when the view is unloaded so other views can reuse it safely
+            this.Unloaded += (s, e) =>
+            {
+                try { PlotViewControl.Model = null; } catch { }
+            };
+
+            this.Loaded += (s, e) =>
+            {
+                try { PlotViewControl.Model = viewModel.PlotModel; } catch { }
+            };
 
             VM.NavigateInvoked += (sender, args) => NavigateInvoked?.Invoke(sender, args);
         }
