@@ -147,12 +147,16 @@ namespace IntronFileController.ViewModels
         }
 
 
-        public PlotModel PlotModel { get; private set; } = new() { Title = "Distância do Laser vs. Tempo" };
+        public PlotModel PlotModel { get; private set; } = new() { Title = "Acelerômetro triaxial" };
         public PlotController PlotController { get; private set; } = new();
         public LineSeries _lineSeries { get; private set; } = new();
         public List<DataPoint> PlotPoints { get; private set; } = [];
         private int _maxSecsPlotPoint = 10;
         private double _zeroOffset = 0;
+
+        [ObservableProperty] private double plotSelectionMin = 0;
+        [ObservableProperty] private double plotSelectionMax = 0;
+
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsShowingMarkersText))]
