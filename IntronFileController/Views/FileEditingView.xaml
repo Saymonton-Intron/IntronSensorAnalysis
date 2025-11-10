@@ -5,6 +5,7 @@
     xmlns:converters="clr-namespace:IntronFileController.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:IntronFileController.Views"
+    xmlns:controls="clr-namespace:IntronFileController.Views.Controls"
     xmlns:materialDesign="clr-namespace:MaterialDesignThemes.Wpf;assembly=MaterialDesignThemes.Wpf"
     xmlns:materialDesignColors="clr-namespace:MaterialDesignColors;assembly=MaterialDesignColors"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -74,6 +75,10 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <Grid Visibility="{Binding LabelsVisibility}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -290,11 +295,8 @@
 
         </DockPanel>
 
-        <Grid Grid.RowSpan="3" Grid.Column="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <Grid Grid.RowSpan="3"
+              Grid.Column="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -307,34 +309,17 @@
                           behaviors:RangeSelectionBehavior.RangeSelectedCommand="{Binding RangeSelectedCommand, FallbackValue={x:Null}}"
                           behaviors:RangeSelectionBehavior.SelectedMinX="{Binding PlotSelectionMin, Mode=TwoWay}"
                           behaviors:RangeSelectionBehavior.SelectedMaxX="{Binding PlotSelectionMax, Mode=TwoWay}"
-                          behaviors:RangeSelectionBehavior.RaiseCommandOnProgrammaticChange="True" />
-            
-            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center"
-                        Margin="0,8,0,0">
-                <Slider Minimum="0"
-                        Maximum="100"
-                        Width="200"
-                        Value="{Binding PlotSelectionMin, Mode=TwoWay}" />
-                <TextBlock Text="Mínimo"
-                           Margin="8,0,0,0" />
-                <Slider Minimum="0"
-                        Maximum="100"
-                        Width="200"
-                        Margin="16,0,0,0"
-                        Value="{Binding PlotSelectionMax, Mode=TwoWay}" />
-                <TextBlock Text="Máximo"
-                           Margin="8,0,0,0" />
-            </StackPanel>
+                          behaviors:RangeSelectionBehavior.RaiseCommandOnProgrammaticChange="True" />         
 
             <StackPanel Grid.Column="1">
 
                 <StackPanel Orientation="Vertical" Margin="8">
                     <TextBlock Margin="2" Text="Max pontos na tela" />
-                    <TextBox Width="80" Text="{Binding MaxPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:NumericUpDown Width="120" Minimum="10" Maximum="10000000" Value="{Binding MaxPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
                 <StackPanel Orientation="Vertical" Margin="8">
                     <TextBlock Margin="2" Text="Min pontos na tela" />
-                    <TextBox Width="80" Text="{Binding MinPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:NumericUpDown Width="120" Minimum="1" Maximum="10000000" Value="{Binding MinPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
 
                 <Button
@@ -342,6 +327,17 @@
                         Command="{Binding ShowHideMarkersCommand}"
                         Content="{Binding IsShowingMarkersText}"
                         ToolTip="Alterna a exibição dos pontos (markers) no gráfico" />
+
+                <!-- Plot selection numeric controls -->
+                <StackPanel Orientation="Vertical" Margin="8">
+                    <TextBlock Margin="2" Text="Plot seleção min (índice)" />
+                    <controls:NumericUpDown Width="120" Minimum="0" Maximum="10000000" Value="{Binding PlotSelectionMin, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical" Margin="8">
+                    <TextBlock Margin="2" Text="Plot seleção max (índice)" />
+                    <controls:NumericUpDown Width="120" Minimum="0" Maximum="10000000" Value="{Binding PlotSelectionMax, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+
             </StackPanel>
         </Grid>
     </Grid>

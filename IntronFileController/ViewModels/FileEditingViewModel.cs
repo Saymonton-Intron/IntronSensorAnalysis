@@ -12,6 +12,7 @@ using OxyPlot.Series;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -47,6 +48,10 @@ namespace IntronFileController.ViewModels
                 {
                     // Recalcula a plotagem para toda a faixa (inicial)
                     RebuildPlotForRange(0, Math.Max(0, value.ZMeasurements.Count - 1));
+
+                    // initialize selection texts to full range
+                    PlotSelectionMinText = "0";
+                    PlotSelectionMaxText = (Math.Max(0, value.ZMeasurements.Count - 1)).ToString(CultureInfo.InvariantCulture);
                 });
             }
         }
@@ -183,9 +188,46 @@ namespace IntronFileController.ViewModels
 
         // reacted to changes via PropertyChanged subscription in constructor
 
-        [ObservableProperty] private double plotSelectionMin = 0;
-        [ObservableProperty] private double plotSelectionMax = 0;
+        [ObservableProperty]
+        private double plotSelectionMin = 0;
+        partial void OnPlotSelectionMinChanged(double value)
+        {
+            // update text representation when numeric selection changes (e.g. from graph)
+            var text = value.ToString(CultureInfo.InvariantCulture);
+            if (PlotSelectionMinText != text)
+                PlotSelectionMinText = text;
+        }
 
+        [ObservableProperty]
+        private double plotSelectionMax = 0;
+        partial void OnPlotSelectionMaxChanged(double value)
+        {
+            var text = value.ToString(CultureInfo.InvariantCulture);
+            if (PlotSelectionMaxText != text)
+                PlotSelectionMaxText = text;
+        }
+
+        // string-backed inputs for UI so we can validate/parse immediately
+        [ObservableProperty]
+        private string plotSelectionMinText = "0";
+
+        [ObservableProperty]
+        private string plotSelectionMaxText = "100";
+
+        private void ApplyPlotSelectionToAxis(double min, double max)
+        {
+            var xAxis = PlotModel.DefaultXAxis ?? PlotModel.Axes.First(a => a.IsHorizontal());
+            if (xAxis != null)
+            {
+                // avoid NaN
+                if (double.IsNaN(min) || double.IsNaN(max)) return;
+                // ensure min <= max
+                if (min > max) (min, max) = (max, min);
+                xAxis.Zoom(min, max);
+                PlotModel.InvalidatePlot(false);
+                // start debounce, but rebuild already called by callers
+            }
+        }
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsShowingMarkersText))]
@@ -232,6 +274,35 @@ namespace IntronFileController.ViewModels
                 {
                     // rebuild for current visible range
                     RebuildPlotForCurrentRange();
+                }
+
+                if (e.PropertyName == "PlotSelectionMinText")
+                {
+                    if (double.TryParse(PlotSelectionMinText, NumberStyles.Any, CultureInfo.InvariantCulture, out var v))
+                    {
+                        if (SelectedFile != null)
+                        {
+                            var total = Math.Max(1, SelectedFile.ZMeasurements.Count);
+                            v = Math.Max(0, Math.Min(v, total - 1));
+                        }
+                        PlotSelectionMin = v;
+                        ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
+                        RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+                    }
+                }
+                if (e.PropertyName == "PlotSelectionMaxText")
+                {
+                    if (double.TryParse(PlotSelectionMaxText, NumberStyles.Any, CultureInfo.InvariantCulture, out var v))
+                    {
+                        if (SelectedFile != null)
+                        {
+                            var total = Math.Max(1, SelectedFile.ZMeasurements.Count);
+                            v = Math.Max(0, Math.Min(v, total - 1));
+                        }
+                        PlotSelectionMax = v;
+                        ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
+                        RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+                    }
                 }
             };
 
@@ -631,6 +702,64 @@ namespace IntronFileController.ViewModels
 
                 file.BottomCutLine = cutIndexFromTop; // <<< agora atribui no alvo
             }
+        }
+
+        // Commands to adjust Max/Min points on screen
+        [RelayCommand]
+        private void IncreaseMaxPoints(int step = 100)
+        {
+            MaxPointsOnScreen = Math.Min(100_000_000, MaxPointsOnScreen + step);
+        }
+        [RelayCommand]
+        private void DecreaseMaxPoints(int step = 100)
+        {
+            MaxPointsOnScreen = Math.Max(10, MaxPointsOnScreen - step);
+        }
+
+        [RelayCommand]
+        private void IncreaseMinPoints(int step = 10)
+        {
+            MinPointsOnScreen = Math.Min(MaxPointsOnScreen, MinPointsOnScreen + step);
+        }
+        [RelayCommand]
+        private void DecreaseMinPoints(int step = 10)
+        {
+            MinPointsOnScreen = Math.Max(1, MinPointsOnScreen - step);
+        }
+
+        // Commands to nudge plot selection numeric values
+        [RelayCommand]
+        private void IncreasePlotMin(int step = 1)
+        {
+            if (SelectedFile == null) return;
+            double maxIndex = Math.Max(0, SelectedFile.ZMeasurements.Count - 1);
+            PlotSelectionMin = Math.Min(maxIndex, PlotSelectionMin + step);
+            ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
+            RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+        }
+        [RelayCommand]
+        private void DecreasePlotMin(int step = 1)
+        {
+            PlotSelectionMin = Math.Max(0, PlotSelectionMin - step);
+            ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
+            RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+        }
+
+        [RelayCommand]
+        private void IncreasePlotMax(int step = 1)
+        {
+            if (SelectedFile == null) return;
+            double maxIndex = Math.Max(0, SelectedFile.ZMeasurements.Count - 1);
+            PlotSelectionMax = Math.Min(maxIndex, PlotSelectionMax + step);
+            ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
+            RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
+        }
+        [RelayCommand]
+        private void DecreasePlotMax(int step = 1)
+        {
+            PlotSelectionMax = Math.Max(0, PlotSelectionMax - step);
+            ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
+            RebuildPlotForRange(PlotSelectionMin, PlotSelectionMax);
         }
     }
 }
