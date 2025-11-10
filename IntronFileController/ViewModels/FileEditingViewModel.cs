@@ -44,12 +44,20 @@ namespace IntronFileController.ViewModels
             {
                 System.Windows.Application.Current?.Dispatcher.Invoke(() =>
                 {
-                    for (int i = 0; i < value.ZMeasurements.Count; i++)
-                    {
-                        PlotPointsZ.Add(new(i, value.ZMeasurements[i]));
-                        PlotPointsX.Add(new(i, value.XMeasurements[i]));
-                        PlotPointsY.Add(new(i, value.YMeasurements[i]));
-                    }
+                    // Limpa coleções antigas
+                    PlotPointsZ.Clear();
+                    PlotPointsX.Clear();
+                    PlotPointsY.Clear();
+
+                    // Downsample antes de popular a lista que alimenta a série
+                    var decZ = DownsampleMinMax(value.ZMeasurements, _maxDisplayPoints);
+                    var decX = DownsampleMinMax(value.XMeasurements, _maxDisplayPoints);
+                    var decY = DownsampleMinMax(value.YMeasurements, _maxDisplayPoints);
+
+                    PlotPointsZ.AddRange(decZ);
+                    PlotPointsX.AddRange(decX);
+                    PlotPointsY.AddRange(decY);
+
                     PlotModel.InvalidatePlot(true);
                 });
             }
@@ -172,6 +180,9 @@ namespace IntronFileController.ViewModels
         public List<DataPoint> PlotPointsY { get; private set; } = [];
         private int _maxSecsPlotPoint = 10;
         private double _zeroOffset = 0;
+
+        // máximo de pontos que vamos exibir por série (downsampling)
+        private int _maxDisplayPoints = 2000;
 
         [ObservableProperty] private double plotSelectionMin = 0;
         [ObservableProperty] private double plotSelectionMax = 0;
@@ -337,6 +348,69 @@ namespace IntronFileController.ViewModels
             };
 
             PlotModel.Series.Add(_lineSeries);
+        }
+
+        // Downsampling simples: para cada bucket calcula min e max (preserva envelope)
+        private List<DataPoint> DownsampleMinMax(IList<double> values, int maxPoints)
+        {
+            int n = values?.Count ?? 0;
+            var result = new List<DataPoint>();
+            if (n == 0) return result;
+            if (n <= maxPoints)
+            {
+                result.Capacity = n;
+                for (int i = 0; i < n; i++)
+                    result.Add(new DataPoint(i, values[i]));
+                return result;
+            }
+
+            // usa min/max por bucket; estimativa de buckets para ficar perto de maxPoints
+            int targetBuckets = Math.Max(1, maxPoints / 2);
+            double bucketSize = (double)n / targetBuckets;
+
+            // inclui primeiro ponto
+            result.Add(new DataPoint(0, values[0]));
+
+            for (int b = 0; b < targetBuckets; b++)
+            {
+                int start = (int)Math.Floor(b * bucketSize);
+                int end = (int)Math.Floor((b + 1) * bucketSize);
+                if (b == targetBuckets - 1) end = n;
+                start = Math.Max(0, Math.Min(start, n - 1));
+                end = Math.Max(start + 1, Math.Min(end, n));
+
+                double minVal = double.MaxValue; int minIdx = start;
+                double maxVal = double.MinValue; int maxIdx = start;
+
+                for (int i = start; i < end; i++)
+                {
+                    var v = values[i];
+                    if (v < minVal) { minVal = v; minIdx = i; }
+                    if (v > maxVal) { maxVal = v; maxIdx = i; }
+                }
+
+                if (minIdx == maxIdx)
+                {
+                    result.Add(new DataPoint(minIdx, minVal));
+                }
+                else if (minIdx < maxIdx)
+                {
+                    result.Add(new DataPoint(minIdx, minVal));
+                    result.Add(new DataPoint(maxIdx, maxVal));
+                }
+                else
+                {
+                    result.Add(new DataPoint(maxIdx, maxVal));
+                    result.Add(new DataPoint(minIdx, minVal));
+                }
+            }
+
+            // inclui último ponto
+            result.Add(new DataPoint(n - 1, values[n - 1]));
+
+            // ordena por X para garantir sequência
+            result = result.OrderBy(p => p.X).ToList();
+            return result;
         }
 
         [RelayCommand]
