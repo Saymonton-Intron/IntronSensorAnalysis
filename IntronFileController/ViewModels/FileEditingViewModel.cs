@@ -17,6 +17,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Documents;
+using System.Timers;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace IntronFileController.ViewModels
@@ -44,21 +45,8 @@ namespace IntronFileController.ViewModels
             {
                 System.Windows.Application.Current?.Dispatcher.Invoke(() =>
                 {
-                    // Limpa coleções antigas
-                    PlotPointsZ.Clear();
-                    PlotPointsX.Clear();
-                    PlotPointsY.Clear();
-
-                    // Downsample antes de popular a lista que alimenta a série
-                    var decZ = DownsampleMinMax(value.ZMeasurements, _maxDisplayPoints);
-                    var decX = DownsampleMinMax(value.XMeasurements, _maxDisplayPoints);
-                    var decY = DownsampleMinMax(value.YMeasurements, _maxDisplayPoints);
-
-                    PlotPointsZ.AddRange(decZ);
-                    PlotPointsX.AddRange(decX);
-                    PlotPointsY.AddRange(decY);
-
-                    PlotModel.InvalidatePlot(true);
+                    // Recalcula a plotagem para toda a faixa (inicial)
+                    RebuildPlotForRange(0, Math.Max(0, value.ZMeasurements.Count - 1));
                 });
             }
         }
@@ -175,14 +163,21 @@ namespace IntronFileController.ViewModels
         public PlotModel PlotModel { get; private set; } = new() { Title = "Acelerômetro triaxial" };
         public PlotController PlotController { get; private set; } = new();
         public LineSeries _lineSeries { get; private set; } = new();
+        public LineSeries _lineSeriesX { get; private set; } = new();
+        public LineSeries _lineSeriesY { get; private set; } = new();
         public List<DataPoint> PlotPointsZ { get; private set; } = [];
         public List<DataPoint> PlotPointsX { get; private set; } = [];
         public List<DataPoint> PlotPointsY { get; private set; } = [];
         private int _maxSecsPlotPoint = 10;
         private double _zeroOffset = 0;
 
-        // máximo de pontos que vamos exibir por série (downsampling)
+        // máximo de pontos que vamos exibir por série (downsampling para a faixa completa)
         private int _maxDisplayPoints = 2000;
+
+        // limite superior de pontos renderizados na tela simultaneamente (para evitar travamento em janelas medianas)
+        // ajuste este valor conforme performance/monitor alvo. Com 400k+ de amostras, 1500 costuma ser seguro.
+        private int _maxPointsOnScreen = 1500;
+        private int _minPointsOnScreen = 100;
 
         [ObservableProperty] private double plotSelectionMin = 0;
         [ObservableProperty] private double plotSelectionMax = 0;
@@ -195,6 +190,10 @@ namespace IntronFileController.ViewModels
         {
             get => !IsShowingMarkers ? "Mostrar pontos" : "Esconder pontos";
         }
+
+        // timer para debouncing de eventos de eixo
+        private readonly System.Timers.Timer _axisChangeTimer;
+
         public FileEditingViewModel(IFileHandlerHelper _fileHandlerHelper, IFileImportService _fileImportService, IFileExportService _fileExportService, IOxyThemeHelper _oxyThemeHelper, IThemeService _themeService)
         {
             fileHandlerHelper = _fileHandlerHelper;
@@ -208,6 +207,16 @@ namespace IntronFileController.ViewModels
             ImportedFiles!.CollectionChanged += (a, b) =>
             {
                 RemoveSelectedCommand.NotifyCanExecuteChanged();
+            };
+
+            // debounce de 150ms para evitar recalcular à exaustão enquanto o usuário move o scroll
+            _axisChangeTimer = new System.Timers.Timer(150) { AutoReset = false };
+            _axisChangeTimer.Elapsed += (_, __) =>
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    RebuildPlotForCurrentRange();
+                });
             };
 
             SetupPlotModel();
@@ -250,19 +259,8 @@ namespace IntronFileController.ViewModels
                             double x = axis.InverseTransform(args.Position.X);
                             axis.ZoomAt(zoomFactor, x);
                         }
-                        if (zoomFactor >= 1)
-                        {
-                            _lineSeries.MarkerType = MarkerType.Circle;
-                            IsShowingMarkers = true;
-                            ShowHideMarkersCommand.NotifyCanExecuteChanged();
-                        }
-                        else
-                        {
-                            _lineSeries.MarkerType = MarkerType.None;
-                            IsShowingMarkers = false;
-                            ShowHideMarkersCommand.NotifyCanExecuteChanged();
-                        }
 
+                        // NÃO altera markers automaticamente mais aqui.
                         view.InvalidatePlot(false);
                         args.Handled = true;
                     }));
@@ -286,37 +284,11 @@ namespace IntronFileController.ViewModels
             // 🖱 Botão do meio = Pan livre (X e Y ao mesmo tempo)
             controller.BindMouseDown(OxyMouseButton.Middle, PlotCommands.PanAt);
 
-            //// Clique esquerdo/direito → resetar todos os eixos
-            //var resetCommand = new DelegatePlotCommand<OxyMouseDownEventArgs>(
-            //    (view, ctl, args) =>
-            //    {
-            //        view.ActualModel.ResetAllAxes();
-            //        view.InvalidatePlot(false);
-            //        args.Handled = true;
-            //    });
-
             controller.Bind(
                 new OxyMouseDownGesture(OxyMouseButton.Left, clickCount: 2),
                 PlotCommands.ResetAt);
 
-            //controller.BindMouseDown(OxyMouseButton.Left, resetCommand);
-            //controller.BindMouseDown(OxyMouseButton.Right, resetCommand);
-            //controller.BindMouseDown(OxyMouseButton.Middle, resetCommand);
-
             var now = DateTime.Now;
-
-            //PlotModel.Axes.Add(new DateTimeAxis
-            //{
-            //    Position = AxisPosition.Bottom,
-            //    Title = "Amostras",
-            //    //StringFormat = "HH:mm:ss.fff",
-            //    MajorGridlineStyle = LineStyle.Solid,
-            //    MinorGridlineStyle = LineStyle.Dot,
-            //    Minimum = 0,
-            //    Maximum = DateTimeAxis.ToDouble(now.AddSeconds(_maxSecsPlotPoint))
-            //    //Minimum = DateTimeAxis.ToDouble(now),
-            //    //Maximum = DateTimeAxis.ToDouble(now.AddSeconds(_maxSecsPlotPoint))
-            //});
 
             PlotModel.Axes.Add(new LinearAxis
             {
@@ -333,6 +305,15 @@ namespace IntronFileController.ViewModels
                 MinorGridlineStyle = LineStyle.Dot
             });
 
+            // Observa mudanças do eixo X para recalcular pontos visíveis
+            var bottomAxis = PlotModel.Axes.First(a => a.IsHorizontal());
+            bottomAxis.AxisChanged += (s, e) =>
+            {
+                // debounce
+                _axisChangeTimer.Stop();
+                _axisChangeTimer.Start();
+            };
+
             _lineSeries = new LineSeries
             {
                 Title = "Eixo Vertical (g)",
@@ -343,11 +324,115 @@ namespace IntronFileController.ViewModels
                 MarkerFill = OxyColors.White,
                 MarkerStrokeThickness = 1.2,
                 ItemsSource = PlotPointsZ,
-                TrackerFormatString = "Amostra {0}\nValor {4:000.0}g",
+                TrackerFormatString = "Amostra {2:0}\nValor {4} g",
+                CanTrackerInterpolatePoints = false
+            };
+
+            _lineSeriesX = new LineSeries
+            {
+                Title = "Eixo Lateral (g)",
+                StrokeThickness = 2,
+                Color = OxyColors.Red,
+                MarkerType = MarkerType.None,
+                MarkerSize = 5,
+                MarkerStroke = OxyColors.Red,
+                MarkerFill = OxyColors.White,
+                MarkerStrokeThickness = 1.2,
+                ItemsSource = PlotPointsX,
+                TrackerFormatString = "Amostra {2:0}\nValor {4} g",
+                CanTrackerInterpolatePoints = false
+            };
+
+            _lineSeriesY = new LineSeries
+            {
+                Title = "Eixo Frontal (g)",
+                StrokeThickness = 2,
+                Color = OxyColors.DodgerBlue,
+                MarkerType = MarkerType.None,
+                MarkerSize = 5,
+                MarkerStroke = OxyColors.DodgerBlue,
+                MarkerFill = OxyColors.White,
+                MarkerStrokeThickness = 1.2,
+                ItemsSource = PlotPointsY,
+                TrackerFormatString = "Amostra {2:0}\nValor {4} g",
                 CanTrackerInterpolatePoints = false
             };
 
             PlotModel.Series.Add(_lineSeries);
+            PlotModel.Series.Add(_lineSeriesX);
+            PlotModel.Series.Add(_lineSeriesY);
+        }
+
+        // Reconstroi as List<DataPoint> (PlotPointsZ/X/Y) para a faixa [minX,maxX]
+        private void RebuildPlotForRange(double minX, double maxX)
+        {
+            if (SelectedFile is null) return;
+
+            int total = SelectedFile.ZMeasurements.Count;
+            if (total == 0) return;
+
+            // clamp faixa aos índices de amostra
+            int startIdx = Math.Max(0, (int)Math.Floor(minX));
+            int endIdx = Math.Min(total - 1, (int)Math.Ceiling(maxX));
+            if (endIdx < startIdx) endIdx = startIdx;
+
+            int windowLength = Math.Max(1, endIdx - startIdx + 1);
+
+            // cálculo adaptativo de quantos pontos mostrar:
+            // quanto menor a janela visível (zoom in), maior o número de pontos (até o total)
+            double fullRange = Math.Max(1, total - 1);
+            double visibleWidth = Math.Max(1.0, maxX - minX);
+            // fator: relação entre faixa completa e faixa visível
+            double zoomFactor = fullRange / visibleWidth;
+
+            // rawDesired: tenta escalar _maxDisplayPoints pela razão de zoom
+            int rawDesired = Math.Max(1, (int)(_maxDisplayPoints * zoomFactor));
+
+            // aplica limites: evita muitos pontos quando zoom ainda está "médio"
+            // - força um mínimo razoável
+            // - força um teto absoluto para evitar travamentos em janelas médias/grandes
+            int desired = Math.Clamp(rawDesired, _minPointsOnScreen, _maxPointsOnScreen);
+
+            // se a janela está muito pequena (windowLength < desired), permitimos mostrar todos os pontos da janela
+            desired = Math.Min(desired, windowLength);
+
+            // obtém a sublista de valores e aplica downsample
+            var subZ = SelectedFile.ZMeasurements.Skip(startIdx).Take(windowLength).ToList();
+            var subX = SelectedFile.XMeasurements.Skip(startIdx).Take(windowLength).ToList();
+            var subY = SelectedFile.YMeasurements.Skip(startIdx).Take(windowLength).ToList();
+
+            var decZ = DownsampleMinMax(subZ, desired)
+                        .Select(dp => new DataPoint(dp.X + startIdx, dp.Y))
+                        .ToList();
+            var decX = DownsampleMinMax(subX, desired)
+                        .Select(dp => new DataPoint(dp.X + startIdx, dp.Y))
+                        .ToList();
+            var decY = DownsampleMinMax(subY, desired)
+                        .Select(dp => new DataPoint(dp.X + startIdx, dp.Y))
+                        .ToList();
+
+            PlotPointsZ.Clear();
+            PlotPointsX.Clear();
+            PlotPointsY.Clear();
+
+            PlotPointsZ.AddRange(decZ);
+            PlotPointsX.AddRange(decX);
+            PlotPointsY.AddRange(decY);
+
+            // atualiza o CanExecute do comando de mostrar markers
+            ShowHideMarkersCommand.NotifyCanExecuteChanged();
+
+            PlotModel.InvalidatePlot(true);
+        }
+
+        // Rebuild usando o eixo X atual
+        private void RebuildPlotForCurrentRange()
+        {
+            if (SelectedFile is null) return;
+            var xAxis = PlotModel.DefaultXAxis ?? PlotModel.Axes.First(a => a.IsHorizontal());
+            double min = xAxis.ActualMinimum;
+            double max = xAxis.ActualMaximum;
+            RebuildPlotForRange(min, max);
         }
 
         // Downsampling simples: para cada bucket calcula min e max (preserva envelope)
@@ -422,6 +507,9 @@ namespace IntronFileController.ViewModels
             var xAxis = PlotModel.DefaultXAxis ?? PlotModel.Axes.First(a => a.IsHorizontal());
             xAxis.Zoom(min, max);
             PlotModel.InvalidatePlot(false);
+
+            // também força rebuild imediato da janela selecionada
+            RebuildPlotForRange(min, max);
         }
         [RelayCommand(CanExecute = nameof(CanShowHideMarkers))]
         private void ShowHideMarkers()
@@ -432,16 +520,20 @@ namespace IntronFileController.ViewModels
             {
 
                 _lineSeries.MarkerType = MarkerType.None;
+                _lineSeriesX.MarkerType = MarkerType.None;
+                _lineSeriesY.MarkerType = MarkerType.None;
                 IsShowingMarkers = false;
             }
             else
             {
                 _lineSeries.MarkerType = MarkerType.Circle;
+                _lineSeriesX.MarkerType = MarkerType.Circle;
+                _lineSeriesY.MarkerType = MarkerType.Circle;
                 IsShowingMarkers = true;
             }
             PlotModel?.InvalidatePlot(true);
         }
-        private bool CanShowHideMarkers() => PlotPointsZ.Count() > 0;
+        private bool CanShowHideMarkers() => (PlotPointsZ.Count() + PlotPointsX.Count() + PlotPointsY.Count()) > 0;
 
 
         [RelayCommand]
