@@ -1,25 +1,15 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using IntronFileController.Common;
 using IntronFileController.Common.Extensions;
 using IntronFileController.Helpers;
-using IntronFileController.Models;
 using IntronFileController.Services;
-using Microsoft.Win32;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Documents;
-using System.Timers;
-using static System.Net.Mime.MediaTypeNames;
+using OxyPlot.Legends;
 
 namespace IntronFileController.ViewModels
 {
@@ -175,6 +165,9 @@ namespace IntronFileController.ViewModels
         public List<DataPoint> PlotPointsY { get; private set; } = [];
         private int _maxSecsPlotPoint = 10;
         private double _zeroOffset = 0;
+
+        // flag to skip reapplying previous vertical axis ranges once (used after Reset)
+        private bool _skipReapplyVerticalOnce = false;
 
         // máximo de pontos que vamos exibir por série (downsampling para a faixa completa)
         private int _maxDisplayPoints = 2000;
@@ -370,12 +363,76 @@ namespace IntronFileController.ViewModels
             // 🖱 Botão do meio = Pan livre (X e Y ao mesmo tempo)
             controller.BindMouseDown(OxyMouseButton.Middle, PlotCommands.PanAt);
 
+            // Replace default ResetAt binding with custom action that resets axes and skips vertical reapply
             controller.Bind(
                 new OxyMouseDownGesture(OxyMouseButton.Left, clickCount: 2),
-                PlotCommands.ResetAt);
+                new DelegatePlotCommand<OxyMouseDownEventArgs>((view, ctl, args) =>
+                {
+                    // If we have a selected file with data, explicitly set X axis to full data range
+                    try
+                    {
+                        double min = 0;
+                        double max = 0;
+                        if (SelectedFile != null)
+                        {
+                            var total = Math.Max(0, SelectedFile.ZMeasurements.Count - 1);
+                            min = 0;
+                            max = Math.Max(0, total);
+                        }
+
+                        var model = view.ActualModel;
+                        if (model != null)
+                        {
+                            // Set X axis to full range
+                            var xAxis = model.Axes.FirstOrDefault(a => a.IsHorizontal());
+                            if (xAxis != null)
+                            {
+                                xAxis.Zoom(min, max);
+                            }
+
+                            // Reset vertical axes to let OxyPlot autoscale them
+                            foreach (var yAxis in model.Axes.Where(a => a.IsVertical()))
+                            {
+                                yAxis.Reset();
+                            }
+
+                            // ensure we do not reapply previous vertical ranges during the next rebuild
+                            _skipReapplyVerticalOnce = true;
+
+                            // Force rebuild for the full X range (so points are recalculated)
+                            RebuildPlotForRange(min, max);
+
+                            // Invalidate to redraw with new axis settings
+                            model.InvalidatePlot(true);
+                        }
+                    }
+                    catch
+                    {
+                        // fallback: call ResetAllAxes
+                        view.ActualModel?.ResetAllAxes();
+                        _skipReapplyVerticalOnce = true;
+                        RebuildPlotForCurrentRange();
+                        view.InvalidatePlot(true);
+                    }
+
+                    args.Handled = true;
+                }));
 
             var now = DateTime.Now;
-
+            PlotModel.Legends.Add(new OxyPlot.Legends.Legend()
+            {
+                LegendTitle = "Legenda",
+                LegendItemAlignment = OxyPlot.HorizontalAlignment.Left,
+                LegendPosition = LegendPosition.BottomCenter,
+                LegendPlacement = LegendPlacement.Outside,
+                LegendOrientation = LegendOrientation.Horizontal,
+                LegendMargin = 4,
+                LegendTitleFontSize = 12,
+                LegendBackground = OxyColor.FromAColor(30, OxyColors.LimeGreen),
+                LegendTitleColor = OxyColors.Gray,
+                LegendTextColor = OxyColors.WhiteSmoke,
+                IsLegendVisible = true,
+            });
             PlotModel.Axes.Add(new LinearAxis
             {
                 Position = AxisPosition.Bottom,
@@ -512,12 +569,21 @@ namespace IntronFileController.ViewModels
             ShowHideMarkersCommand.NotifyCanExecuteChanged();
 
             // reaplica escalas Y anteriores para evitar autoscale durante pan/zoom
-            foreach (var (axis, min, max) in verticalAxes)
+            // unless we were asked to skip reapplying once (e.g. after Reset)
+            if (!_skipReapplyVerticalOnce)
             {
-                if (!double.IsNaN(min) && !double.IsNaN(max) && min < max)
+                foreach (var (axis, min, max) in verticalAxes)
                 {
-                    axis.Zoom(min, max);
+                    if (!double.IsNaN(min) && !double.IsNaN(max) && min < max)
+                    {
+                        axis.Zoom(min, max);
+                    }
                 }
+            }
+            else
+            {
+                // consume the skip flag so next rebuild behaves normally
+                _skipReapplyVerticalOnce = false;
             }
 
             PlotModel.InvalidatePlot(true);
