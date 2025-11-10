@@ -176,8 +176,12 @@ namespace IntronFileController.ViewModels
 
         // limite superior de pontos renderizados na tela simultaneamente (para evitar travamento em janelas medianas)
         // ajuste este valor conforme performance/monitor alvo. Com 400k+ de amostras, 1500 costuma ser seguro.
-        private int _maxPointsOnScreen = 1500;
-        private int _minPointsOnScreen = 100;
+        [ObservableProperty]
+        private int maxPointsOnScreen = 1500;
+        [ObservableProperty]
+        private int minPointsOnScreen = 100;
+
+        // reacted to changes via PropertyChanged subscription in constructor
 
         [ObservableProperty] private double plotSelectionMin = 0;
         [ObservableProperty] private double plotSelectionMax = 0;
@@ -220,6 +224,17 @@ namespace IntronFileController.ViewModels
             };
 
             SetupPlotModel();
+
+            // Subscribe to property changes for Max/Min points so UI updates immediately
+            this.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == "MaxPointsOnScreen" || e.PropertyName == "MinPointsOnScreen")
+                {
+                    // rebuild for current visible range
+                    RebuildPlotForCurrentRange();
+                }
+            };
+
             oxyThemeHelper.Apply(PlotModel, themeService.Current);
             themeService.ThemeChanged += (sender, baseTheme) => oxyThemeHelper.Apply(PlotModel, baseTheme);
         }
@@ -378,6 +393,9 @@ namespace IntronFileController.ViewModels
 
             int windowLength = Math.Max(1, endIdx - startIdx + 1);
 
+            // guarda escalas Y atuais para evitar autoscale ao rebuild (Pan/Zoom)
+            var verticalAxes = PlotModel.Axes.Where(a => a.IsVertical()).Select(a => (axis: a, min: a.ActualMinimum, max: a.ActualMaximum)).ToList();
+
             // cálculo adaptativo de quantos pontos mostrar:
             // quanto menor a janela visível (zoom in), maior o número de pontos (até o total)
             double fullRange = Math.Max(1, total - 1);
@@ -391,7 +409,7 @@ namespace IntronFileController.ViewModels
             // aplica limites: evita muitos pontos quando zoom ainda está "médio"
             // - força um mínimo razoável
             // - força um teto absoluto para evitar travamentos em janelas médias/grandes
-            int desired = Math.Clamp(rawDesired, _minPointsOnScreen, _maxPointsOnScreen);
+            int desired = Math.Clamp(rawDesired, MinPointsOnScreen, MaxPointsOnScreen);
 
             // se a janela está muito pequena (windowLength < desired), permitimos mostrar todos os pontos da janela
             desired = Math.Min(desired, windowLength);
@@ -421,6 +439,15 @@ namespace IntronFileController.ViewModels
 
             // atualiza o CanExecute do comando de mostrar markers
             ShowHideMarkersCommand.NotifyCanExecuteChanged();
+
+            // reaplica escalas Y anteriores para evitar autoscale durante pan/zoom
+            foreach (var (axis, min, max) in verticalAxes)
+            {
+                if (!double.IsNaN(min) && !double.IsNaN(max) && min < max)
+                {
+                    axis.Zoom(min, max);
+                }
+            }
 
             PlotModel.InvalidatePlot(true);
         }
