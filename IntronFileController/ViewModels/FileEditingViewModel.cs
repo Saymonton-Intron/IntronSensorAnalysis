@@ -69,7 +69,7 @@ namespace IntronFileController.ViewModels
                     try
                     {
                         var min = value.TopCutLine;
-                        var max = Math.Max(0, value.BottomCutLine - 1);
+                        var max = Math.Max(0, value.BottomCutLine - 2);
 
                         _suppressPlotToFile = true;
                         ApplyPlotSelectionToAxis(min, max);
@@ -97,7 +97,8 @@ namespace IntronFileController.ViewModels
                 try
                 {
                     var min = vm.TopCutLine;
-                    var max = Math.Max(0, vm.BottomCutLine - 1);
+                    // BottomCutLine is 1-based first removed; plot max = BottomCutLine - 2
+                    var max = Math.Max(0, vm.BottomCutLine - 2);
 
                     _suppressPlotToFile = true;
                     ApplyPlotSelectionToAxis(min, max);
@@ -147,7 +148,7 @@ namespace IntronFileController.ViewModels
                     try
                     {
                         var min = SelectedFile.TopCutLine;
-                        var max = Math.Max(0, SelectedFile.BottomCutLine - 1);
+                        var max = Math.Max(0, SelectedFile.BottomCutLine - 2);
                         _suppressPlotToFile = true;
                         ApplyPlotSelectionToAxis(min, max);
                         _suppressPlotToFile = false;
@@ -158,6 +159,8 @@ namespace IntronFileController.ViewModels
             }
         }
 
+        [ObservableProperty]
+        private bool isCutMode = false; // false = Keep mode (default)
 
         private string lastLinesTextBox = "0";
         public string LastLinesTextBox
@@ -168,8 +171,8 @@ namespace IntronFileController.ViewModels
 
                 var total = SelectedFile.Model.Preview.Lines().Length;
                 // offset a partir do fim (o que aparece no TextBox)
-                // regra: bottomCutLine = total - offset
-                var offset = total - SelectedFile.BottomCutLine;
+                // regra: bottomCutLine = total - offset + 1  (1-based first removed)
+                var offset = Math.Max(0, total - SelectedFile.BottomCutLine + 1);
                 return offset.ToString();
             }
             set
@@ -181,10 +184,10 @@ namespace IntronFileController.ViewModels
                 {
                     var total = SelectedFile.Model.Preview.Lines().Length;
 
-                    // Corte no rodapé = (última linha) - offset  (1-based)
-                    // Ex.: total=200, offset=3  -> corte = 197
+                    // Corte no rodapé = (última linha) - offset + 1 (1-based first removed)
+                    // Ex.: total=200, offset=3  -> bottomCutLine = 198
                     // clamp para não sair do arquivo
-                    int bottomCutLine = Math.Max(1, total - offset);
+                    int bottomCutLine = Math.Max(1, total - offset + 1);
 
                     SelectedFile.BottomCutLine = bottomCutLine;
                     OnPropertyChanged(nameof(TextInitLabelVisibility));
@@ -194,7 +197,7 @@ namespace IntronFileController.ViewModels
                     try
                     {
                         var min = SelectedFile.TopCutLine;
-                        var max = Math.Max(0, SelectedFile.BottomCutLine - 1);
+                        var max = Math.Max(0, SelectedFile.BottomCutLine - 2);
                         _suppressPlotToFile = true;
                         ApplyPlotSelectionToAxis(min, max);
                         _suppressPlotToFile = false;
@@ -347,8 +350,12 @@ namespace IntronFileController.ViewModels
                 try
                 {
                     _suppressFileToPlot = true;
-                    // BottomCutLine is 1-based index of first line in the bottom-kept block
-                    SelectedFile.BottomCutLine = Math.Max(1, (int)Math.Floor(value) + 1);
+                    // BottomCutLine is 1-based index of first line removed after the kept block
+                    // Mapping: BottomCutLine = floor(value) + 2  (so when value==total-1 -> BottomCutLine = total+1 -> no cut)
+                    var total = Math.Max(1, SelectedFile.Model.Preview.Lines().Length);
+                    int bc = (int)Math.Floor(value) + 2;
+                    bc = Math.Max(1, Math.Min(total + 1, bc));
+                    SelectedFile.BottomCutLine = bc;
                     _suppressFileToPlot = false;
                 }
                 catch { _suppressFileToPlot = false; }

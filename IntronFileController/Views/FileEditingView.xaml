@@ -161,11 +161,38 @@
                                             Text=" ---- INÍCIO DO ARQUIVO ---- "
                                             Visibility="{Binding TextInitLabelVisibility}" />
                                         <LineBreak />
-                                        <Run Text="{Binding SelectedFile.FirstLines, Mode=OneWay}" />
+
+                                        <!-- FirstLines: removed in Keep mode (red), kept in Cut mode (green) -->
+                                        <Run Text="{Binding SelectedFile.FirstLines, Mode=OneWay}">
+                                            <Run.Style>
+                                                <Style TargetType="Run">
+                                                    <Setter Property="Foreground" Value="Red" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCutMode}" Value="True">
+                                                            <Setter Property="Foreground" Value="Green" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Run.Style>
+                                        </Run>
+
                                         <LineBreak />
                                         <Run Foreground="Red">------------------------------------------------</Run>
                                         <LineBreak />
-                                        <Run Foreground="Green" Text="{Binding SelectedFile.KeepFirstLines, Mode=OneWay}" />
+
+                                        <!-- SelectedFirstLines: kept in Keep mode (green), removed in Cut mode (red) -->
+                                        <Run Text="{Binding SelectedFile.SelectedFirstLines, Mode=OneWay}">
+                                            <Run.Style>
+                                                <Style TargetType="Run">
+                                                    <Setter Property="Foreground" Value="Green" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCutMode}" Value="True">
+                                                            <Setter Property="Foreground" Value="Red" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Run.Style>
+                                        </Run>
 
                                     </TextBlock>
                                 </ScrollViewer>
@@ -192,11 +219,35 @@
                                         Foreground="Gray"
                                         TextWrapping="Wrap">
 
-                                        <Run Foreground="Green" Text="{Binding SelectedFile.KeepLastLines, Mode=OneWay}" />
+                                        <!-- SelectedLastLines: kept in Keep mode (green), removed in Cut mode (red) -->
+                                        <Run Text="{Binding SelectedFile.SelectedLastLines, Mode=OneWay}">
+                                            <Run.Style>
+                                                <Style TargetType="Run">
+                                                    <Setter Property="Foreground" Value="Green" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCutMode}" Value="True">
+                                                            <Setter Property="Foreground" Value="Red" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Run.Style>
+                                        </Run>
                                         <LineBreak />
                                         <Run Foreground="Red">------------------------------------------------</Run>
                                         <LineBreak />
-                                        <Run Text="{Binding SelectedFile.LastLines, Mode=OneWay}" />
+                                        <!-- LastLines: removed in Keep mode (red), kept in Cut mode (green) -->
+                                        <Run Text="{Binding SelectedFile.LastLines, Mode=OneWay}">
+                                            <Run.Style>
+                                                <Style TargetType="Run">
+                                                    <Setter Property="Foreground" Value="Red" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCutMode}" Value="True">
+                                                            <Setter Property="Foreground" Value="Green" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Run.Style>
+                                        </Run>
                                         <LineBreak />
                                         <TextBlock
                                             Foreground="Red"
@@ -212,8 +263,11 @@
                         <!--  Configurações da pagina  -->
                         <StackPanel Grid.Row="1">
 
-
                             <DockPanel>
+                                <ToggleButton
+                                    Margin="0,0,8,0"
+                                    IsChecked="{Binding IsCutMode, Mode=TwoWay}"
+                                    Content="Modo: Cortar (red = seleção)" />
                                 <TextBlock
                                     VerticalAlignment="Bottom"
                                     Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"

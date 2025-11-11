@@ -29,7 +29,8 @@ public partial class ImportedFileViewModel : ObservableObject
         // defaults “de fábrica”
         TopCutLine = 0;          // linha alvo topo (1-based)
         TopContextCount = 20;       // qtas linhas pegar (antes e depois)
-        BottomCutLine = WorkingPreview.Lines().Length;       // linha alvo fundo (1-based)
+        // set BottomCutLine to total+1 so that by default nothing is cut at bottom
+        BottomCutLine = WorkingPreview.Lines().Length + 1;       // linha alvo fundo (1-based)
         BottomContextCount = 20;
 
         // Preencher lista de leituras a partir do working preview
@@ -76,7 +77,7 @@ public partial class ImportedFileViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FirstLines))]
-    [NotifyPropertyChangedFor(nameof(KeepFirstLines))]
+    [NotifyPropertyChangedFor(nameof(SelectedFirstLines))]
     private int topCutLine;
 
     /// <summary>
@@ -84,7 +85,7 @@ public partial class ImportedFileViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FirstLines))]
-    [NotifyPropertyChangedFor(nameof(KeepFirstLines))]
+    [NotifyPropertyChangedFor(nameof(SelectedFirstLines))]
     private int topContextCount;
 
     /// <summary>
@@ -93,9 +94,9 @@ public partial class ImportedFileViewModel : ObservableObject
     public string FirstLines => WorkingPreview.TopContextBlock(TopCutLine, TopContextCount);
 
     /// <summary>
-    /// bloco que será mantido (após o separador), recortado
+    /// bloco que será selecionado (após o separador), recortado
     /// </summary>
-    public string KeepFirstLines => WorkingPreview.TopKeepWindow(TopCutLine, TopContextCount);
+    public string SelectedFirstLines => WorkingPreview.TopKeepWindow(TopCutLine, TopContextCount);
 
 
     //----------- FUNDO -----------
@@ -105,7 +106,7 @@ public partial class ImportedFileViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LastLines))]
-    [NotifyPropertyChangedFor(nameof(KeepLastLines))]
+    [NotifyPropertyChangedFor(nameof(SelectedLastLines))]
     private int bottomCutLine;
 
     /// <summary>
@@ -113,13 +114,13 @@ public partial class ImportedFileViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LastLines))]
-    [NotifyPropertyChangedFor(nameof(KeepLastLines))]
+    [NotifyPropertyChangedFor(nameof(SelectedLastLines))]
     private int bottomContextCount;
 
     /// <summary>
-    /// bloco que será mantido (antes do separador), recortado
+    /// bloco que será selecionado (antes do separador), recortado
     /// </summary>
-    public string KeepLastLines => WorkingPreview.BottomKeepWindow(BottomCutLine, BottomContextCount);
+    public string SelectedLastLines => WorkingPreview.BottomKeepWindow(BottomCutLine, BottomContextCount);
 
     /// <summary>
     /// bloco que será removido (após o separador)
@@ -131,8 +132,8 @@ public partial class ImportedFileViewModel : ObservableObject
     public void RaiseAll()
     {
         OnPropertyChanged(nameof(FirstLines));
-        OnPropertyChanged(nameof(KeepFirstLines));
-        OnPropertyChanged(nameof(KeepLastLines));
+        OnPropertyChanged(nameof(SelectedFirstLines));
+        OnPropertyChanged(nameof(SelectedLastLines));
         OnPropertyChanged(nameof(LastLines));
     }
 
@@ -162,7 +163,7 @@ public partial class ImportedFileViewModel : ObservableObject
         RebuildMeasurementsFromPreview();
 
         // update bottom cut default to new length if needed
-        BottomCutLine = Math.Max(1, WorkingPreview.Lines().Length);
+        BottomCutLine = Math.Max(1, WorkingPreview.Lines().Length + 1);
 
         // raise previews
         RaiseAll();
@@ -176,7 +177,7 @@ public partial class ImportedFileViewModel : ObservableObject
         RemovedRanges.Clear();
         WorkingPreview = _originalPreview;
         RebuildMeasurementsFromPreview();
-        BottomCutLine = Math.Max(1, WorkingPreview.Lines().Length);
+        BottomCutLine = Math.Max(1, WorkingPreview.Lines().Length + 1);
         RaiseAll();
     }
 }
