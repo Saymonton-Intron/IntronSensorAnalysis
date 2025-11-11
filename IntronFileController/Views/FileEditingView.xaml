@@ -156,10 +156,12 @@
                                         Foreground="Gray"
                                         TextWrapping="Wrap">
 
-                                        <TextBlock
-                                            Foreground="Red"
-                                            Text=" ---- INÍCIO DO ARQUIVO ---- "
-                                            Visibility="{Binding TextInitLabelVisibility}" />
+                                        <InlineUIContainer>
+                                            <TextBlock
+                                                Foreground="Red"
+                                                Text=" ---- INÍCIO DO ARQUIVO ---- "
+                                                Visibility="{Binding TextInitLabelVisibility}" />
+                                        </InlineUIContainer>
                                         <LineBreak />
 
                                         <!-- FirstLines: removed in Keep mode (red), kept in Cut mode (green) -->
@@ -249,10 +251,12 @@
                                             </Run.Style>
                                         </Run>
                                         <LineBreak />
-                                        <TextBlock
-                                            Foreground="Red"
-                                            Text=" ---- FINAL DO ARQUIVO ---- "
-                                            Visibility="{Binding TextEndLabelVisibility}" />
+                                        <InlineUIContainer>
+                                            <TextBlock
+                                                Foreground="Red"
+                                                Text=" ---- FINAL DO ARQUIVO ---- "
+                                                Visibility="{Binding TextEndLabelVisibility}" />
+                                        </InlineUIContainer>
 
                                     </TextBlock>
                                 </ScrollViewer>
@@ -267,7 +271,11 @@
                                 <ToggleButton
                                     Margin="0,0,8,0"
                                     IsChecked="{Binding IsCutMode, Mode=TwoWay}"
-                                    Content="Modo: Cortar (red = seleção)" />
+                                    Content="Modo: Cortar" />
+                                <Button
+                                    Margin="8,0,8,0"
+                                    Command="{Binding CutSelectionCommand}"
+                                    Content="Executar Corte" />
                                 <TextBlock
                                     VerticalAlignment="Bottom"
                                     Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"

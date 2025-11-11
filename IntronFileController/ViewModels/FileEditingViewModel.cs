@@ -315,6 +315,9 @@ namespace IntronFileController.ViewModels
                 }
                 catch { _suppressFileToPlot = false; }
             }
+
+            // at end, notify can execute
+            CutSelectionCommand.NotifyCanExecuteChanged();
         }
 
         [ObservableProperty]
@@ -360,6 +363,9 @@ namespace IntronFileController.ViewModels
                 }
                 catch { _suppressFileToPlot = false; }
             }
+
+            // at end, notify can execute
+            CutSelectionCommand.NotifyCanExecuteChanged();
         }
 
         // string-backed inputs for UI so we can validate/parse immediately
@@ -1013,6 +1019,51 @@ namespace IntronFileController.ViewModels
             PlotSelectionMax = Math.Max(0, PlotSelectionMax - step);
             ApplyPlotSelectionToAxis(PlotSelectionMin, PlotSelectionMax);
             // Do not rebuild or change visible plotted points
+        }
+
+        [RelayCommand(CanExecute = nameof(CanExecuteCutSelection))]
+        private void CutSelection()
+        {
+            if (SelectedFile is null) return;
+
+            int start = Math.Max(0, (int)Math.Floor(PlotSelectionMin));
+            int end = Math.Max(0, (int)Math.Floor(PlotSelectionMax));
+
+            var total = SelectedFile.WorkingPreview.Lines().Length;
+
+            if (IsCutMode)
+            {
+                // remove the selected rectangle
+                if (start <= end)
+                {
+                    SelectedFile.CutRange(start, end);
+                }
+            }
+            else
+            {
+                // Keep mode: remove everything outside [start,end]
+                // Remove higher indices first to avoid reindexing issues
+                if (end < total - 1)
+                {
+                    SelectedFile.CutRange(end + 1, total - 1);
+                }
+                if (start > 0)
+                {
+                    SelectedFile.CutRange(0, start - 1);
+                }
+            }
+
+            // Refresh plot for current view
+            RebuildPlotForCurrentRange();
+            ShowHideMarkersCommand.NotifyCanExecuteChanged();
+            RemoveSelectedCommand.NotifyCanExecuteChanged();
+            ProcessAllCommand.NotifyCanExecuteChanged();
+        }
+
+        private bool CanExecuteCutSelection()
+        {
+            if (SelectedFile is null) return false;
+            return PlotSelectionMax >= PlotSelectionMin;
         }
     }
 }
