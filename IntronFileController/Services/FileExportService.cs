@@ -69,35 +69,18 @@ public sealed class FileExportService : IFileExportService
 
     private static void ExportOne(ImportedFileViewModel vm, string targetDir, CancellationToken ct)
     {
-        // Mantém do TopCutLine+1 até BottomCutLine-1
-        int keepStartLine = Math.Max(1, vm.TopCutLine + 1);
-        int keepEndLine = Math.Max(0, vm.BottomCutLine - 1);
-
         // Caminho de saída (mesmo nome do arquivo original, saneado)
         var outName = SanitizeFileName(vm.Model.FileName);
         var outPath = Path.Combine(targetDir, string.IsNullOrWhiteSpace(outName) ? "arquivo.txt" : outName);
 
-        // Intervalo inválido => grava vazio
-        if (keepEndLine < keepStartLine)
-        {
-            using var emptyWriter = new StreamWriter(outPath, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            return;
-        }
-
-        // STREAMING: percorre sem alocar arrays de linhas
-        using var reader = new StringReader(vm.Model.Preview ?? string.Empty);
+        // STREAMING: copia o header + working preview inteiro (o WorkingPreview já reflete os cortes aplicados)
+        using var reader = new StringReader(string.Concat(vm.Model.FileHeader ?? string.Empty, vm.WorkingPreview ?? string.Empty));
         using var writer = new StreamWriter(outPath, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
         string? line;
-        int lineNo = 0;
         while ((line = reader.ReadLine()) is not null)
         {
             ct.ThrowIfCancellationRequested();
-            lineNo++;
-
-            if (lineNo < keepStartLine) continue;
-            if (lineNo > keepEndLine) break;
-
             writer.Write(line);
             writer.Write(Environment.NewLine);
         }

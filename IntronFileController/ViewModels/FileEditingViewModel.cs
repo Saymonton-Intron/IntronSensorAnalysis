@@ -865,7 +865,7 @@ namespace IntronFileController.ViewModels
                 // fallback: assign raw values
                 ApplyPlotSelectionToAxis(min, max);
             }
-
+            OnPropertyChanged(nameof(TextInitLabelVisibility));
             // Do not rebuild plot or change axis here. The plot remains displayed as-is.
         }
         [RelayCommand(CanExecute = nameof(CanShowHideMarkers))]
