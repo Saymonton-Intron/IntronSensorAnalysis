@@ -10,6 +10,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using OxyPlot.Legends;
+using System.ComponentModel;
 
 namespace IntronFileController.ViewModels
 {
@@ -29,9 +30,29 @@ namespace IntronFileController.ViewModels
         [NotifyPropertyChangedFor(nameof(TextInitLabelVisibility))]
         [NotifyPropertyChangedFor(nameof(TextEndLabelVisibility))]
         private ImportedFileViewModel selectedFile;
+
+        // keep reference to previously subscribed selected file to unsubscribe
+        private ImportedFileViewModel? _previousSelectedFileForSubscription;
+
+        // suppression flags to avoid feedback loops between plot <-> file updates
+        private bool _suppressPlotToFile = false;
+        private bool _suppressFileToPlot = false;
+
         partial void OnSelectedFileChanged(ImportedFileViewModel value)
         {
+            // unsubscribe previous
+            if (_previousSelectedFileForSubscription is not null)
+            {
+                _previousSelectedFileForSubscription.PropertyChanged -= SelectedFile_PropertyChanged;
+                _previousSelectedFileForSubscription = null;
+            }
+
             if (value == null) return;
+
+            // subscribe new
+            value.PropertyChanged += SelectedFile_PropertyChanged;
+            _previousSelectedFileForSubscription = value;
+
             if (value.ZMeasurements.Count == value.YMeasurements.Count && value.YMeasurements.Count == value.XMeasurements.Count)
             {
                 System.Windows.Application.Current?.Dispatcher.Invoke(() =>
@@ -42,7 +63,50 @@ namespace IntronFileController.ViewModels
                     // initialize selection texts to full range
                     PlotSelectionMinText = "0";
                     PlotSelectionMaxText = (Math.Max(0, value.ZMeasurements.Count - 1)).ToString(CultureInfo.InvariantCulture);
+
+                    // initialize rectangle selection to match current file cuts
+                    // Map: PlotMin = TopCutLine (0-based), PlotMax = BottomCutLine - 1 (since BottomCutLine is 1-based)
+                    try
+                    {
+                        var min = value.TopCutLine;
+                        var max = Math.Max(0, value.BottomCutLine - 1);
+
+                        _suppressPlotToFile = true;
+                        ApplyPlotSelectionToAxis(min, max);
+                        _suppressPlotToFile = false;
+                    }
+                    catch
+                    {
+                        // ignore
+                        _suppressPlotToFile = false;
+                    }
                 });
+            }
+        }
+
+        private void SelectedFile_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (sender is not ImportedFileViewModel vm) return;
+
+            if (_suppressFileToPlot) return; // avoid reacting to changes we initiated from plot
+
+            // react only to top/bottom cut changes
+            if (e.PropertyName == nameof(ImportedFileViewModel.TopCutLine) || e.PropertyName == nameof(ImportedFileViewModel.BottomCutLine))
+            {
+                // Map file cuts -> plot selection
+                try
+                {
+                    var min = vm.TopCutLine;
+                    var max = Math.Max(0, vm.BottomCutLine - 1);
+
+                    _suppressPlotToFile = true;
+                    ApplyPlotSelectionToAxis(min, max);
+                    _suppressPlotToFile = false;
+                }
+                catch
+                {
+                    _suppressPlotToFile = false;
+                }
             }
         }
 
@@ -78,6 +142,17 @@ namespace IntronFileController.ViewModels
 
                     OnPropertyChanged(nameof(TextInitLabelVisibility));
                     OnPropertyChanged(nameof(TextEndLabelVisibility));
+
+                    // also update plot selection rectangle
+                    try
+                    {
+                        var min = SelectedFile.TopCutLine;
+                        var max = Math.Max(0, SelectedFile.BottomCutLine - 1);
+                        _suppressPlotToFile = true;
+                        ApplyPlotSelectionToAxis(min, max);
+                        _suppressPlotToFile = false;
+                    }
+                    catch { _suppressPlotToFile = false; }
                 }
 
             }
@@ -114,6 +189,18 @@ namespace IntronFileController.ViewModels
                     SelectedFile.BottomCutLine = bottomCutLine;
                     OnPropertyChanged(nameof(TextInitLabelVisibility));
                     OnPropertyChanged(nameof(TextEndLabelVisibility));
+
+                    // update plot selection rectangle too
+                    try
+                    {
+                        var min = SelectedFile.TopCutLine;
+                        var max = Math.Max(0, SelectedFile.BottomCutLine - 1);
+                        _suppressPlotToFile = true;
+                        ApplyPlotSelectionToAxis(min, max);
+                        _suppressPlotToFile = false;
+                    }
+                    catch { _suppressPlotToFile = false; }
+
                     // NÃO mexe no BottomContextCount: ele já dita quantas linhas mostrar.
                 }
             }
@@ -147,6 +234,7 @@ namespace IntronFileController.ViewModels
                 {
                     if (SelectedFile is not null)
                         SelectedFile.BottomContextCount = ctx;
+                    OnPropertyChanged(nameof(BottomContextTextBox));
 
                     OnPropertyChanged(nameof(TextInitLabelVisibility));
                     OnPropertyChanged(nameof(TextEndLabelVisibility));
@@ -181,6 +269,9 @@ namespace IntronFileController.ViewModels
 
         // reacted to changes via PropertyChanged subscription in constructor
 
+        // suppression to avoid recursion when coercing plot values
+        private bool _suppressPlotCoercion = false;
+
         [ObservableProperty]
         private double plotSelectionMin = 0;
         partial void OnPlotSelectionMinChanged(double value)
@@ -189,6 +280,38 @@ namespace IntronFileController.ViewModels
             var text = value.ToString(CultureInfo.InvariantCulture);
             if (PlotSelectionMinText != text)
                 PlotSelectionMinText = text;
+
+            // Coerce to integer sample index when we have a selected file
+            if (!_suppressPlotCoercion && SelectedFile is not null)
+            {
+                var total = Math.Max(1, SelectedFile.ZMeasurements.Count);
+                var intVal = Math.Max(0, Math.Min(total - 1, (int)Math.Floor(value)));
+                if (Math.Abs(value - intVal) > 1e-9)
+                {
+                    try
+                    {
+                        _suppressPlotCoercion = true;
+                        PlotSelectionMin = intVal; // will re-enter this method but _suppressPlotCoercion prevents loop
+                    }
+                    finally
+                    {
+                        _suppressPlotCoercion = false;
+                    }
+                    return;
+                }
+            }
+
+            // sync to SelectedFile (unless this change was initiated from the file side)
+            if (!_suppressPlotToFile && SelectedFile is not null)
+            {
+                try
+                {
+                    _suppressFileToPlot = true;
+                    SelectedFile.TopCutLine = Math.Max(0, (int)Math.Floor(value));
+                    _suppressFileToPlot = false;
+                }
+                catch { _suppressFileToPlot = false; }
+            }
         }
 
         [ObservableProperty]
@@ -198,6 +321,38 @@ namespace IntronFileController.ViewModels
             var text = value.ToString(CultureInfo.InvariantCulture);
             if (PlotSelectionMaxText != text)
                 PlotSelectionMaxText = text;
+
+            // Coerce to integer sample index when we have a selected file
+            if (!_suppressPlotCoercion && SelectedFile is not null)
+            {
+                var total = Math.Max(1, SelectedFile.ZMeasurements.Count);
+                var intVal = Math.Max(0, Math.Min(total - 1, (int)Math.Floor(value)));
+                if (Math.Abs(value - intVal) > 1e-9)
+                {
+                    try
+                    {
+                        _suppressPlotCoercion = true;
+                        PlotSelectionMax = intVal; // re-enter but suppressed
+                    }
+                    finally
+                    {
+                        _suppressPlotCoercion = false;
+                    }
+                    return;
+                }
+            }
+
+            if (!_suppressPlotToFile && SelectedFile is not null)
+            {
+                try
+                {
+                    _suppressFileToPlot = true;
+                    // BottomCutLine is 1-based index of first line in the bottom-kept block
+                    SelectedFile.BottomCutLine = Math.Max(1, (int)Math.Floor(value) + 1);
+                    _suppressFileToPlot = false;
+                }
+                catch { _suppressFileToPlot = false; }
+            }
         }
 
         // string-backed inputs for UI so we can validate/parse immediately
@@ -216,6 +371,14 @@ namespace IntronFileController.ViewModels
             if (double.IsNaN(min) || double.IsNaN(max)) return;
             // ensure min <= max
             if (min > max) (min, max) = (max, min);
+
+            // If we have a selected file, coerce to integer indices
+            if (SelectedFile is not null)
+            {
+                var total = Math.Max(1, SelectedFile.ZMeasurements.Count);
+                min = Math.Max(0, Math.Min(total - 1, Math.Floor(min)));
+                max = Math.Max(0, Math.Min(total - 1, Math.Floor(max)));
+            }
 
             // Update internal selection values (this will also update the text properties via property changed handlers)
             PlotSelectionMin = min;
@@ -673,10 +836,22 @@ namespace IntronFileController.ViewModels
             // Exemplo: só loga / aplica zoom / filtra / abre diálogo...
             var (min, max) = range;
 
-            // Change: do not change axis zoom or plotted points when user selects a range via graph/UI.
-            // Only update internal selection values so UI can use them, but keep the current visible graph unchanged.
-            PlotSelectionMin = min;
-            PlotSelectionMax = max;
+            // Coerce selection to integer sample indices when possible
+            if (SelectedFile is not null)
+            {
+                var total = Math.Max(1, SelectedFile.ZMeasurements.Count);
+                var intMin = Math.Max(0, Math.Min(total - 1, (int)Math.Floor(min)));
+                var intMax = Math.Max(0, Math.Min(total - 1, (int)Math.Floor(max)));
+
+                // Update internal selection (this will trigger OnPlotSelection... handlers which will sync to file)
+                _suppressPlotToFile = false; // ensure syncing allowed
+                ApplyPlotSelectionToAxis(intMin, intMax);
+            }
+            else
+            {
+                // fallback: assign raw values
+                ApplyPlotSelectionToAxis(min, max);
+            }
 
             // Do not rebuild plot or change axis here. The plot remains displayed as-is.
         }

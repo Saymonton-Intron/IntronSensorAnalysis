@@ -11,24 +11,61 @@ public partial class ImportedFileViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<double> zMeasurements = [];
     [ObservableProperty] private ObservableCollection<double> xMeasurements = [];
     [ObservableProperty] private ObservableCollection<double> yMeasurements = [];
+
+    // Keep original preview and a working copy where temporary cuts are applied
+    private readonly string _originalPreview;
+    private string _workingPreview;
+
+    // list of removed ranges (start inclusive, end inclusive) for potential future use
+    public List<(int Start, int End)> RemovedRanges { get; } = new();
+
     public ImportedFileViewModel(ImportedFile model)
     {
         Model = model;
 
+        _originalPreview = model.Preview ?? string.Empty;
+        _workingPreview = _originalPreview;
+
         // defaults “de fábrica”
         TopCutLine = 0;          // linha alvo topo (1-based)
         TopContextCount = 20;       // qtas linhas pegar (antes e depois)
-        BottomCutLine = Model.Preview.Lines().Length;       // linha alvo fundo (1-based)
+        BottomCutLine = WorkingPreview.Lines().Length;       // linha alvo fundo (1-based)
         BottomContextCount = 20;
 
-        // Preencher lista de leituras
-        foreach (var line in Model.Preview.Split(["\r\n"], StringSplitOptions.RemoveEmptyEntries))
+        // Preencher lista de leituras a partir do working preview
+        RebuildMeasurementsFromPreview();
+    }
+
+    private void RebuildMeasurementsFromPreview()
+    {
+        ZMeasurements.Clear();
+        XMeasurements.Clear();
+        YMeasurements.Clear();
+
+        foreach (var line in WorkingPreview.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries))
         {
             var p = line.Split(';'); // 0 é o index
+            if (p.Length < 4) continue;
+            if (double.TryParse(p[1], out var z)) ZMeasurements.Add(z);
+            if (double.TryParse(p[2], out var x)) XMeasurements.Add(x);
+            if (double.TryParse(p[3], out var y)) YMeasurements.Add(y);
+        }
 
-            ZMeasurements.Add(double.Parse(p[1]));
-            XMeasurements.Add(double.Parse(p[2]));
-            YMeasurements.Add(double.Parse(p[3]));
+        // notify plot/viewmodel that counts changed if needed
+        OnPropertyChanged(nameof(ZMeasurements));
+        OnPropertyChanged(nameof(XMeasurements));
+        OnPropertyChanged(nameof(YMeasurements));
+    }
+
+    // Expose working preview for other components if necessary
+    public string WorkingPreview
+    {
+        get => _workingPreview;
+        private set
+        {
+            if (_workingPreview == value) return;
+            _workingPreview = value;
+            OnPropertyChanged();
         }
     }
 
@@ -53,12 +90,12 @@ public partial class ImportedFileViewModel : ObservableObject
     /// <summary>
     /// bloco que será removido (antes do separador)
     /// </summary>
-    public string FirstLines => Model.Preview.TopContextBlock(TopCutLine, TopContextCount);
+    public string FirstLines => WorkingPreview.TopContextBlock(TopCutLine, TopContextCount);
 
     /// <summary>
     /// bloco que será mantido (após o separador), recortado
     /// </summary>
-    public string KeepFirstLines => Model.Preview.TopKeepWindow(TopCutLine, TopContextCount);
+    public string KeepFirstLines => WorkingPreview.TopKeepWindow(TopCutLine, TopContextCount);
 
 
     //----------- FUNDO -----------
@@ -82,12 +119,12 @@ public partial class ImportedFileViewModel : ObservableObject
     /// <summary>
     /// bloco que será mantido (antes do separador), recortado
     /// </summary>
-    public string KeepLastLines => Model.Preview.BottomKeepWindow(BottomCutLine, BottomContextCount);
+    public string KeepLastLines => WorkingPreview.BottomKeepWindow(BottomCutLine, BottomContextCount);
 
     /// <summary>
     /// bloco que será removido (após o separador)
     /// </summary>
-    public string LastLines => Model.Preview.BottomContextBlock(BottomCutLine, BottomContextCount);
+    public string LastLines => WorkingPreview.BottomContextBlock(BottomCutLine, BottomContextCount);
 
 
     // se recarregar Model.Preview externamente
@@ -97,5 +134,49 @@ public partial class ImportedFileViewModel : ObservableObject
         OnPropertyChanged(nameof(KeepFirstLines));
         OnPropertyChanged(nameof(KeepLastLines));
         OnPropertyChanged(nameof(LastLines));
+    }
+
+    /// <summary>
+    /// Temporarily remove a range of samples from the working preview.
+    /// startIdx/endIdx are 0-based inclusive indices of samples to remove.
+    /// </summary>
+    public void CutRange(int startIdx, int endIdx)
+    {
+        if (startIdx < 0) startIdx = 0;
+        var lines = WorkingPreview.Split(new[] { "\r\n" }, StringSplitOptions.None).ToList();
+        if (lines.Count == 0) return;
+        if (endIdx < startIdx) return;
+        if (startIdx >= lines.Count) return;
+        endIdx = Math.Min(endIdx, lines.Count - 1);
+
+        // record removed range relative to current working preview
+        RemovedRanges.Add((startIdx, endIdx));
+
+        // remove range
+        lines.RemoveRange(startIdx, endIdx - startIdx + 1);
+
+        // update working preview
+        WorkingPreview = string.Join("\r\n", lines);
+
+        // rebuild measurements
+        RebuildMeasurementsFromPreview();
+
+        // update bottom cut default to new length if needed
+        BottomCutLine = Math.Max(1, WorkingPreview.Lines().Length);
+
+        // raise previews
+        RaiseAll();
+    }
+
+    /// <summary>
+    /// Reset any cuts and restore original preview
+    /// </summary>
+    public void ResetCuts()
+    {
+        RemovedRanges.Clear();
+        WorkingPreview = _originalPreview;
+        RebuildMeasurementsFromPreview();
+        BottomCutLine = Math.Max(1, WorkingPreview.Lines().Length);
+        RaiseAll();
     }
 }

@@ -31,7 +31,8 @@ public partial class HomeViewModel(IFileImportService _fileImportService, IFileH
         fileHandler.AddFiles(imported);
 
         // invoke back
-        NavigateInvoked?.Invoke(this, new());
+        if(fileHandler.ImportedFiles.Count > 0)
+            NavigateInvoked?.Invoke(this, new());
     }
 
     public async Task AddFilesFromPathsAsync(string[] paths)

@@ -5,10 +5,12 @@ using IntronFileController.ViewModels;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace IntronFileController.Services
 {
@@ -44,22 +46,49 @@ namespace IntronFileController.Services
                     // LÊ O ARQUIVO TODO
                     string content = await reader.ReadToEndAsync();
                     if (content.Lines().Length > 21) // Tem que ter o header
-                    {                        
+                    {
                         list.Add(new(new ImportedFile
                         {
                             FileName = fi.Name,
                             FilePath = fi.FullName,
                             SizeBytes = fi.Length,
                             FileHeader = content.FirstLines(21),
-                            Preview = content.LastLines(content.Lines().Length - 21)  // agora Preview contém apenas os dados
+                            Preview = content.LastLines(content.Lines().Length - 21).TrimStart('\r', '\n')  // agora Preview contém apenas os dados
                         }));
                     }
-
-                    
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // registre/logue se quiser; aqui ignoramos o arquivo problemático
+                    // 1) Construir mensagem amigável para o usuário
+                    string userMsg = $"Erro ao importar o arquivo:\n{p}\n\nMensagem: {ex.Message}";
+
+                    // 2) Registrar para diagnóstico (stack trace etc.)
+                    Trace.TraceError("Falha ao importar arquivo '{0}': {1}\n{2}", p, ex.Message, ex.StackTrace);
+
+                    // 3) Exibir MessageBox na thread da UI, se possível
+                    try
+                    {
+                        var app = Application.Current;
+                        if (app?.Dispatcher != null)
+                        {
+                            app.Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                MessageBox.Show(userMsg, "Erro ao importar arquivo", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }));
+                        }
+                        else
+                        {
+                            // Fallback: tentar exibir diretamente (pode falhar se chamado fora da UI thread)
+                            MessageBox.Show(userMsg, "Erro ao importar arquivo", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    }
+                    catch
+                    {
+                        // Se nem a MessageBox for possível, apenas garantir que não parem o fluxo.
+                        // Já registramos o erro acima.
+                    }
+
+                    // continuar com o próximo arquivo
                 }
             }
 
@@ -119,13 +148,13 @@ namespace IntronFileController.Services
             };
 
             bool? result = dlg.ShowDialog();
-            if (result != true) return [];
+            if (result != true) return Array.Empty<string>();
 
             var selectedPaths = dlg.FileNames;
-            if (selectedPaths == null || selectedPaths.Length == 0) return [];
+            if (selectedPaths == null || selectedPaths.Length == 0) return Array.Empty<string>();
 
             // opcional: filtrar por tamanho, extensão, etc.
-            return [.. selectedPaths.Where(p => p.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase))];
+            return selectedPaths.Where(p => p.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)).ToArray();
         }
     }
 }
