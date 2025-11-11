@@ -386,6 +386,11 @@
                 Content="Processar Tudo"
                 DockPanel.Dock="Right" />
             <Button
+                Margin="0,0,10,0"
+                Command="{Binding ExportSelectionCommand}"
+                Content="Exportar seleção"
+                DockPanel.Dock="Right" />
+            <Button
                 Command="{Binding NavigateBackCommand}"
                 Content="Cancelar e voltar"
                 DockPanel.Dock="Right" />

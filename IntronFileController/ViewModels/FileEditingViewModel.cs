@@ -24,6 +24,7 @@ namespace IntronFileController.ViewModels
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand))]
         [NotifyCanExecuteChangedFor(nameof(ProcessAllCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ExportSelectionCommand))]
         [NotifyPropertyChangedFor(nameof(LabelsVisibility))]
         [NotifyPropertyChangedFor(nameof(FirstLinesTextBox))]
         [NotifyPropertyChangedFor(nameof(LastLinesTextBox))]
@@ -926,10 +927,104 @@ namespace IntronFileController.ViewModels
         [RelayCommand(CanExecute = nameof(CanExecuteProcessAllCommand))]
         private async Task ProcessAll()
         {
-            var readOnlyList = new ReadOnlyObservableCollection<ImportedFileViewModel>(ImportedFiles);
-            await fileExportService.ExportAsync(readOnlyList, owner: System.Windows.Application.Current.MainWindow);
+            try
+            {
+                var readOnlyList = new ReadOnlyObservableCollection<ImportedFileViewModel>(ImportedFiles);
+                var ok = await fileExportService.ExportAsync(readOnlyList, owner: System.Windows.Application.Current.MainWindow);
+
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    if (ok)
+                    {
+                        MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                            "Arquivos processados e salvos com sucesso.\nVerifique a pasta selecionada para os arquivos gerados.",
+                            "Processamento concluído",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                            "Operação cancelada ou nenhum arquivo para processar.",
+                            "Processamento cancelado",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                        "Operação cancelada pelo usuário.",
+                        "Cancelado",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                        $"Erro ao processar arquivos:\n{ex.Message}",
+                        "Erro",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                });
+            }
         }
         private bool CanExecuteProcessAllCommand() => SelectedFile != null && ImportedFiles.Count > 0; // Alterar depois
+
+        [RelayCommand(CanExecute = nameof(CanExecuteExportSelectionCommand))]
+        private async Task ExportSelection()
+        {
+            if (SelectedFile is null) return;
+
+            try
+            {
+                int start = Math.Max(0, (int)Math.Floor(PlotSelectionMin));
+                int end = Math.Max(0, (int)Math.Floor(PlotSelectionMax));
+
+                var ok = await fileExportService.ExportSelectionAsync(SelectedFile, start, end, owner: System.Windows.Application.Current.MainWindow);
+
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    if (ok)
+                    {
+                        MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                            $"Seleção exportada com sucesso para o arquivo referente a '{SelectedFile.Model.FileName}'.\nLinhas exportadas: {start} a {end}.",
+                            "Exportação concluída",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                            "Operação cancelada ou nada a exportar.",
+                            "Exportação cancelada",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                        "Exportação cancelada pelo usuário.",
+                        "Cancelado",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                        $"Erro ao exportar seleção:\n{ex.Message}",
+                        "Erro",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                });
+            }
+        }
+        private bool CanExecuteExportSelectionCommand() => SelectedFile != null; 
 
         [RelayCommand]
         private void ApplyToAll()

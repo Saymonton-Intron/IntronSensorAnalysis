@@ -16,6 +16,7 @@
     Background="{DynamicResource MaterialDesignPaper}"
     Foreground="{DynamicResource MaterialDesignBody}"
     WindowStartupLocation="CenterScreen"
+    WindowState="Maximized"
     mc:Ignorable="d">
     <Grid Margin="12">
         <Grid.RowDefinitions>
