@@ -2,6 +2,7 @@
 using IntronFileController.Common.Extensions;
 using IntronFileController.Models;
 using System.Collections.ObjectModel;
+using System.Globalization;
 
 namespace IntronFileController.ViewModels;
 
@@ -12,9 +13,12 @@ public partial class ImportedFileViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<double> xMeasurements = [];
     [ObservableProperty] private ObservableCollection<double> yMeasurements = [];
 
-    // Keep original preview and a working copy where temporary cuts are applied
-    private readonly string _originalPreview;
+    // Keep original preview (timestamped) and a working copy where temporary cuts are applied
+    private string _originalPreview;
     private string _workingPreview;
+
+    // Raw data (original numeric lines without timestamps) for efficient recalculation
+    private readonly string _rawData;
 
     // list of removed ranges (start inclusive, end inclusive) for potential future use
     public List<(int Start, int End)> RemovedRanges { get; } = new();
@@ -23,7 +27,20 @@ public partial class ImportedFileViewModel : ObservableObject
     {
         Model = model;
 
-        _originalPreview = model.Preview ?? string.Empty;
+        // Model.RawData contains original data lines (sample index;z;x;y)
+        _rawData = model.RawData ?? string.Empty;
+
+        // If Model.Preview already contains timestamped lines, keep it; otherwise build from raw
+        if (string.IsNullOrWhiteSpace(model.Preview))
+        {
+            _originalPreview = BuildTimestampedPreviewFromRaw(_rawData, model.ParsedHeader);
+            Model.Preview = _originalPreview;
+        }
+        else
+        {
+            _originalPreview = model.Preview;
+        }
+
         _workingPreview = _originalPreview;
 
         // defaults “de fábrica”
@@ -37,6 +54,20 @@ public partial class ImportedFileViewModel : ObservableObject
         RebuildMeasurementsFromPreview();
     }
 
+    public int SamplingRate
+    {
+        get => Model.ParsedHeader?.SamplingRate ?? 0;
+        set
+        {
+            if (Model.ParsedHeader == null) return;
+            if (Model.ParsedHeader.SamplingRate == value) return;
+            Model.ParsedHeader.SamplingRate = value;
+            // Recalculate timestamped preview from raw data
+            RecalculateTimestamps();
+            OnPropertyChanged();
+        }
+    }
+
     private void RebuildMeasurementsFromPreview()
     {
         ZMeasurements.Clear();
@@ -45,17 +76,80 @@ public partial class ImportedFileViewModel : ObservableObject
 
         foreach (var line in WorkingPreview.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries))
         {
-            var p = line.Split(';'); // 0 é o index
+            var p = line.Split(';'); // 0 é o datetime agora
             if (p.Length < 4) continue;
-            if (double.TryParse(p[1], out var z)) ZMeasurements.Add(z);
-            if (double.TryParse(p[2], out var x)) XMeasurements.Add(x);
-            if (double.TryParse(p[3], out var y)) YMeasurements.Add(y);
+            // columns: Datetime;Measure Ch_Z(g);Ch_X(g);Ch_Y(g)
+            if (double.TryParse(p[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var z)) ZMeasurements.Add(z);
+            if (double.TryParse(p[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var x)) XMeasurements.Add(x);
+            if (double.TryParse(p[3], NumberStyles.Any, CultureInfo.InvariantCulture, out var y)) YMeasurements.Add(y);
         }
 
         // notify plot/viewmodel that counts changed if needed
         OnPropertyChanged(nameof(ZMeasurements));
         OnPropertyChanged(nameof(XMeasurements));
         OnPropertyChanged(nameof(YMeasurements));
+    }
+
+    // Builds timestamped preview (Datetime;z;x;y) from raw data lines (index;z;x;y) using header info
+    private static string BuildTimestampedPreviewFromRaw(string rawData, SensorFileHeader header)
+    {
+        if (string.IsNullOrWhiteSpace(rawData)) return string.Empty;
+        if (header == null) return rawData;
+
+        var lines = rawData.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+        var sb = new System.Text.StringBuilder();
+
+        // if header.Date is default or sampling rate invalid, return raw joined
+        if (header.Date == default || header.SamplingRate <= 0)
+        {
+            return string.Join("\r\n", lines);
+        }
+
+        double intervalSeconds = 1.0 / header.SamplingRate;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var l = lines[i];
+            var parts = l.Split(';');
+            if (parts.Length < 4)
+                continue;
+
+            // parse sample index (first column) but fallback to i
+            int index = i;
+            if (int.TryParse(parts[0], out var idx)) index = idx;
+
+            var timestamp = header.Date.AddSeconds(index * intervalSeconds);
+            // format using header.DateFormat if present or ISO otherwise
+            string ts = !string.IsNullOrEmpty(header.DateFormat) ? timestamp.ToString(header.DateFormat, CultureInfo.InvariantCulture) : timestamp.ToString("o", CultureInfo.InvariantCulture);
+
+            // preserve numeric columns as found but normalize decimal separator to '.' using InvariantCulture
+            var zStr = parts.Length > 1 ? parts[1].Trim().Replace(',', '.') : "";
+            var xStr = parts.Length > 2 ? parts[2].Trim().Replace(',', '.') : "";
+            var yStr = parts.Length > 3 ? parts[3].Trim().Replace(',', '.') : "";
+
+            sb.Append(ts);
+            sb.Append(';');
+            sb.Append(zStr);
+            sb.Append(';');
+            sb.Append(xStr);
+            sb.Append(';');
+            sb.Append(yStr);
+            if (i < lines.Length - 1) sb.Append("\r\n");
+        }
+
+        return sb.ToString();
+    }
+
+    // Recalculate timestamped preview from raw data and update working/original previews
+    public void RecalculateTimestamps()
+    {
+        var newPreview = BuildTimestampedPreviewFromRaw(_rawData, Model.ParsedHeader);
+        // do not assign to _originalPreview here (may be readonly in other partials); update model and working preview instead
+        Model.Preview = newPreview;
+        WorkingPreview = newPreview;
+        RebuildMeasurementsFromPreview();
+        BottomCutLine = Math.Max(1, WorkingPreview.Lines().Length + 1);
+        RaiseAll();
     }
 
     // Expose working preview for other components if necessary

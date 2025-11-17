@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -27,106 +28,193 @@ namespace IntronFileController.Services
         public async Task<IEnumerable<ImportedFileViewModel>> ImportTextFilesAsync(IEnumerable<string> paths)
         {
             var list = new List<ImportedFileViewModel>();
+            var pathList = paths?.ToArray() ?? Array.Empty<string>();
 
-            foreach (var p in paths)
+            // show small loading window on UI thread
+            IntronFileController.Views.LoadingWindow? loader = null;
+            try
             {
-                try
+                var app = Application.Current;
+                if (app?.Dispatcher != null)
                 {
-                    var fi = new FileInfo(p);
-                    if (!fi.Exists) continue;
-
-                    // Abrir de forma assíncrona e com hint de leitura sequencial
-                    using var stream = new FileStream(
-                        p, FileMode.Open, FileAccess.Read, FileShare.Read,
-                        bufferSize: 81920,
-                        options: FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-                    // Detecta BOM automaticamente
-                    using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-
-                    // LÊ O ARQUIVO TODO
-                    string content = await reader.ReadToEndAsync();
-
-                    // split lines using helper (maintains behavior elsewhere)
-                    var allLines = content.Lines();
-                    if (allLines.Length == 0) continue;
-
-                    // find the index of the data header (e.g. line starting with "TimeStamp")
-                    int dataHeaderIndex = Array.FindIndex(allLines, l => !string.IsNullOrWhiteSpace(l) && l.TrimStart().StartsWith("TimeStamp", StringComparison.OrdinalIgnoreCase));
-
-                    if (dataHeaderIndex < 0)
+                    app.Dispatcher.Invoke(() =>
                     {
-                        // not a supported format
-                        string userMsg = $"Arquivo rejeitado (formato inválido / cabeçalho não encontrado):\n{p}";
-                        Trace.TraceWarning(userMsg);
-                        ShowMessageBox(userMsg, "Arquivo inválido", MessageBoxImage.Warning);
-                        continue;
-                    }
-
-                    // include the data header line as part of the file header so exports keep column names
-                    var headerLines = allLines.Take(dataHeaderIndex + 1).ToArray();
-                    var dataLines = allLines.Skip(dataHeaderIndex + 1).ToArray();
-
-                    // parse header metadata
-                    var parsed = ParseSensorHeader(headerLines);
-
-                    // require minimum header fields
-                    if (parsed == null || !parsed.IsValid)
-                    {
-                        string userMsg = $"Arquivo rejeitado (cabeçalho incompleto ou inválido):\n{p}";
-                        Trace.TraceWarning(userMsg);
-                        ShowMessageBox(userMsg, "Cabeçalho inválido", MessageBoxImage.Warning);
-                        continue;
-                    }
-
-                    // create model
-                    list.Add(new(new ImportedFile
-                    {
-                        FileName = fi.Name,
-                        FilePath = fi.FullName,
-                        SizeBytes = fi.Length,
-                        FileHeader = string.Join(Environment.NewLine, headerLines),
-                        Preview = string.Join(Environment.NewLine, dataLines).TrimStart('\r', '\n'),  // agora Preview contém apenas os dados
-                        ParsedHeader = parsed,
-                        SensorType = parsed.DeviceName?.IndexOf("AX 3D", StringComparison.OrdinalIgnoreCase) >= 0 ? SensorType.AX3D : SensorType.Unknown
-                    }));
+                        loader = new IntronFileController.Views.LoadingWindow();
+                        loader.Owner = app.MainWindow;
+                        loader.Show();
+                    });
                 }
-                catch (Exception ex)
+
+                for (int i = 0; i < pathList.Length; i++)
                 {
-                    // 1) Construir mensagem amigável para o usuário
-                    string userMsg = $"Erro ao importar o arquivo:\n{p}\n\nMensagem: {ex.Message}";
-
-                    // 2) Registrar para diagnóstico (stack trace etc.)
-                    Trace.TraceError("Falha ao importar arquivo '{0}': {1}\n{2}", p, ex.Message, ex.StackTrace);
-
-                    // 3) Exibir MessageBox na thread da UI, se possível
+                    var p = pathList[i];
                     try
                     {
-                        var app = Application.Current;
-                        if (app?.Dispatcher != null)
+                        if (loader != null)
                         {
-                            app.Dispatcher.BeginInvoke(new Action(() =>
-                            {
-                                MessageBox.Show(userMsg, "Erro ao importar arquivo", MessageBoxButton.OK, MessageBoxImage.Error);
-                            }));
+                            var idx = i + 1;
+                            var total = pathList.Length;
+                            Application.Current?.Dispatcher.Invoke(() => loader.UpdateMessage($"Carregando arquivo {idx} de {total}..."));
                         }
-                        else
-                        {
-                            // Fallback: tentar exibir diretamente (pode falhar se chamado fora da UI thread)
-                            MessageBox.Show(userMsg, "Erro ao importar arquivo", MessageBoxButton.OK, MessageBoxImage.Error);
-                        }
-                    }
-                    catch
-                    {
-                        // Se nem a MessageBox for possível, apenas garantir que não parem o fluxo.
-                        // Já registramos o erro acima.
-                    }
 
-                    // continuar com o próximo arquivo
+                        var fi = new FileInfo(p);
+                        if (!fi.Exists) continue;
+
+                        // Abrir de forma assíncrona e com hint de leitura sequencial
+                        using var stream = new FileStream(
+                            p, FileMode.Open, FileAccess.Read, FileShare.Read,
+                            bufferSize: 81920,
+                            options: FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+                        // Detecta BOM automaticamente
+                        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+
+                        // LÊ O ARQUIVO TODO
+                        string content = await reader.ReadToEndAsync();
+
+                        // split lines using helper (maintains behavior elsewhere)
+                        var allLines = content.Lines();
+                        if (allLines.Length == 0) continue;
+
+                        // find the index of the data header (e.g. line starting with "TimeStamp")
+                        int dataHeaderIndex = Array.FindIndex(allLines, l => !string.IsNullOrWhiteSpace(l) && l.TrimStart().StartsWith("TimeStamp", StringComparison.OrdinalIgnoreCase));
+
+                        if (dataHeaderIndex < 0)
+                        {
+                            // not a supported format
+                            string userMsg = $"Arquivo rejeitado (formato inválido / cabeçalho não encontrado):\n{p}";
+                            Trace.TraceWarning(userMsg);
+                            ShowMessageBox(userMsg, "Arquivo inválido", MessageBoxImage.Warning);
+                            continue;
+                        }
+
+                        // include the data header line as part of the file header so exports keep column names
+                        var headerLines = allLines.Take(dataHeaderIndex + 1).ToArray();
+                        var dataLines = allLines.Skip(dataHeaderIndex + 1).ToArray();
+
+                        // parse header metadata
+                        var parsed = ParseSensorHeader(headerLines);
+
+                        // require minimum header fields
+                        if (parsed == null || !parsed.IsValid)
+                        {
+                            string userMsg = $"Arquivo rejeitado (cabeçalho incompleto ou inválido):\n{p}";
+                            Trace.TraceWarning(userMsg);
+                            ShowMessageBox(userMsg, "Cabeçalho inválido", MessageBoxImage.Warning);
+                            continue;
+                        }
+
+                        // raw data joined
+                        var rawData = string.Join("\r\n", dataLines).TrimStart('\r', '\n');
+
+                        // build timestamped preview from raw data using header info
+                        var timestampedPreview = BuildTimestampedPreviewFromRaw(rawData, parsed);
+
+                        // create model
+                        list.Add(new(new ImportedFile
+                        {
+                            FileName = fi.Name,
+                            FilePath = fi.FullName,
+                            SizeBytes = fi.Length,
+                            FileHeader = string.Join(Environment.NewLine, headerLines),
+                            RawData = rawData,
+                            Preview = timestampedPreview,  // agora Preview contém os dados com timestamps
+                            ParsedHeader = parsed,
+                            SensorType = parsed.DeviceName?.IndexOf("AX 3D", StringComparison.OrdinalIgnoreCase) >= 0 ? SensorType.AX3D : SensorType.Unknown
+                        }));
+                    }
+                    catch (Exception ex)
+                    {
+                        // 1) Construir mensagem amigável para o usuário
+                        string userMsg = $"Erro ao importar o arquivo:\n{p}\n\nMensagem: {ex.Message}";
+
+                        // 2) Registrar para diagnóstico (stack trace etc.)
+                        Trace.TraceError("Falha ao importar arquivo '{0}': {1}\n{2}", p, ex.Message, ex.StackTrace);
+
+                        // 3) Exibir MessageBox na thread da UI, se possível
+                        try
+                        {
+                            if (app?.Dispatcher != null)
+                            {
+                                app.Dispatcher.BeginInvoke(new Action(() =>
+                                {
+                                    MessageBox.Show(userMsg, "Erro ao importar arquivo", MessageBoxButton.OK, MessageBoxImage.Error);
+                                }));
+                            }
+                            else
+                            {
+                                // Fallback: tentar exibir diretamente (pode falhar se chamado fora da UI thread)
+                                MessageBox.Show(userMsg, "Erro ao importar arquivo", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
+                        }
+                        catch
+                        {
+                            // Se nem a MessageBox for possível, apenas garantir que não parem o fluxo.
+                            // Já registramos o erro acima.
+                        }
+
+                        // continuar com o próximo arquivo
+                    }
+                }
+            }
+            finally
+            {
+                if (loader != null)
+                {
+                    Application.Current?.Dispatcher.Invoke(() => loader.Close());
                 }
             }
 
             return list;
+        }
+
+        private static string BuildTimestampedPreviewFromRaw(string rawData, SensorFileHeader header)
+        {
+            if (string.IsNullOrWhiteSpace(rawData)) return string.Empty;
+            if (header == null) return rawData;
+
+            var lines = rawData.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+            var sb = new StringBuilder();
+
+            // if header.Date is default or sampling rate invalid, return raw joined
+            if (header.Date == default || header.SamplingRate <= 0)
+            {
+                return string.Join("\r\n", lines);
+            }
+
+            double intervalSeconds = 1.0 / header.SamplingRate;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var l = lines[i];
+                var parts = l.Split(';');
+                if (parts.Length < 4)
+                    continue;
+
+                // parse sample index (first column) but fallback to i
+                int index = i;
+                if (int.TryParse(parts[0], out var idx)) index = idx;
+
+                var timestamp = header.Date.AddSeconds(index * intervalSeconds);
+                // format using header.DateFormat if present or ISO otherwise
+                string ts = !string.IsNullOrEmpty(header.DateFormat) ? timestamp.ToString(header.DateFormat, System.Globalization.CultureInfo.InvariantCulture) : timestamp.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+
+                // preserve numeric columns as found but normalize decimal separator to '.' using InvariantCulture
+                var zStr = parts.Length > 1 ? parts[1].Trim().Replace(',', '.') : "";
+                var xStr = parts.Length > 2 ? parts[2].Trim().Replace(',', '.') : "";
+                var yStr = parts.Length > 3 ? parts[3].Trim().Replace(',', '.') : "";
+
+                sb.Append(ts);
+                sb.Append(';');
+                sb.Append(zStr);
+                sb.Append(';');
+                sb.Append(xStr);
+                sb.Append(';');
+                sb.Append(yStr);
+                if (i < lines.Length - 1) sb.Append("\r\n");
+            }
+
+            return sb.ToString();
         }
 
         private static SensorFileHeader? ParseSensorHeader(string[] headerLines)
@@ -160,7 +248,17 @@ namespace IntronFileController.Services
                     }
                     else if (key.IndexOf("Range", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        hdr.Range = val;
+                        // try to parse two numbers from range like "-2g / +2g" or "-2 / 2"
+                        var matches = Regex.Matches(val, "[-+]?[0-9]*\\,?[0-9]+");
+                        if (matches.Count >= 2)
+                        {
+                            if (double.TryParse(matches[0].Value.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rmin)) hdr.RangeMin = rmin;
+                            if (double.TryParse(matches[1].Value.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rmax)) hdr.RangeMax = rmax;
+                        }
+                        else if (matches.Count == 1)
+                        {
+                            if (double.TryParse(matches[0].Value.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var r)) { hdr.RangeMin = -Math.Abs(r); hdr.RangeMax = Math.Abs(r); }
+                        }
                     }
                     else if (string.Equals(key, "Mac Id", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "MacId", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Mac Id ", StringComparison.OrdinalIgnoreCase))
                     {
