@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -45,17 +46,50 @@ namespace IntronFileController.Services
 
                     // LÊ O ARQUIVO TODO
                     string content = await reader.ReadToEndAsync();
-                    if (content.Lines().Length > 21) // Tem que ter o header
+
+                    // split lines using helper (maintains behavior elsewhere)
+                    var allLines = content.Lines();
+                    if (allLines.Length == 0) continue;
+
+                    // find the index of the data header (e.g. line starting with "TimeStamp")
+                    int dataHeaderIndex = Array.FindIndex(allLines, l => !string.IsNullOrWhiteSpace(l) && l.TrimStart().StartsWith("TimeStamp", StringComparison.OrdinalIgnoreCase));
+
+                    if (dataHeaderIndex < 0)
                     {
-                        list.Add(new(new ImportedFile
-                        {
-                            FileName = fi.Name,
-                            FilePath = fi.FullName,
-                            SizeBytes = fi.Length,
-                            FileHeader = content.FirstLines(21),
-                            Preview = content.LastLines(content.Lines().Length - 21).TrimStart('\r', '\n')  // agora Preview contém apenas os dados
-                        }));
+                        // not a supported format
+                        string userMsg = $"Arquivo rejeitado (formato inválido / cabeçalho não encontrado):\n{p}";
+                        Trace.TraceWarning(userMsg);
+                        ShowMessageBox(userMsg, "Arquivo inválido", MessageBoxImage.Warning);
+                        continue;
                     }
+
+                    // include the data header line as part of the file header so exports keep column names
+                    var headerLines = allLines.Take(dataHeaderIndex + 1).ToArray();
+                    var dataLines = allLines.Skip(dataHeaderIndex + 1).ToArray();
+
+                    // parse header metadata
+                    var parsed = ParseSensorHeader(headerLines);
+
+                    // require minimum header fields
+                    if (parsed == null || !parsed.IsValid)
+                    {
+                        string userMsg = $"Arquivo rejeitado (cabeçalho incompleto ou inválido):\n{p}";
+                        Trace.TraceWarning(userMsg);
+                        ShowMessageBox(userMsg, "Cabeçalho inválido", MessageBoxImage.Warning);
+                        continue;
+                    }
+
+                    // create model
+                    list.Add(new(new ImportedFile
+                    {
+                        FileName = fi.Name,
+                        FilePath = fi.FullName,
+                        SizeBytes = fi.Length,
+                        FileHeader = string.Join(Environment.NewLine, headerLines),
+                        Preview = string.Join(Environment.NewLine, dataLines).TrimStart('\r', '\n'),  // agora Preview contém apenas os dados
+                        ParsedHeader = parsed,
+                        SensorType = parsed.DeviceName?.IndexOf("AX 3D", StringComparison.OrdinalIgnoreCase) >= 0 ? SensorType.AX3D : SensorType.Unknown
+                    }));
                 }
                 catch (Exception ex)
                 {
@@ -94,6 +128,150 @@ namespace IntronFileController.Services
 
             return list;
         }
+
+        private static SensorFileHeader? ParseSensorHeader(string[] headerLines)
+        {
+            if (headerLines == null || headerLines.Length == 0) return null;
+
+            var hdr = new SensorFileHeader();
+            foreach (var raw in headerLines)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                var line = raw.Trim();
+
+                // Some lines are separators (dashes) or column header; skip separators
+                if (line.All(c => c == '-' || c == ' ' || c == '\t')) continue;
+
+                // If this is the column names line (starts with TimeStamp), skip parsing but keep as part of header text
+                if (line.StartsWith("TimeStamp", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // try split by ':' first
+                var idx = line.IndexOf(':');
+                if (idx > 0)
+                {
+                    var key = line.Substring(0, idx).Trim();
+                    var val = line.Substring(idx + 1).Trim();
+                    if (string.Equals(key, "BeanDevice", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Device", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hdr.DeviceName = val;
+                    }
+                    else if (key.IndexOf("Range", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        hdr.Range = val;
+                    }
+                    else if (string.Equals(key, "Mac Id", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "MacId", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Mac Id ", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hdr.MacId = val;
+                    }
+                    else if (string.Equals(key, "Network Id", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "NetworkId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hdr.NetworkId = val;
+                    }
+                    else if (string.Equals(key, "Pan Id", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "PanId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hdr.PanId = val;
+                    }
+                    else if (key.IndexOf("Measure mode", StringComparison.OrdinalIgnoreCase) >= 0 || key.IndexOf("Measure mode", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        hdr.MeasureMode = val;
+                    }
+                    else if (key.IndexOf("Streaming Options", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        hdr.StreamingOptions = val;
+                    }
+                    else if (key.IndexOf("Unit", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        hdr.Unit = val;
+                    }
+                    else if (string.Equals(key, "DATE_FORMAT", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hdr.DateFormat = val;
+                    }
+                    else if (string.Equals(key, "Date", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // try parse using provided format if present
+                        if (!string.IsNullOrEmpty(hdr.DateFormat))
+                        {
+                            try
+                            {
+                                hdr.Date = DateTime.ParseExact(val, hdr.DateFormat, System.Globalization.CultureInfo.InvariantCulture);
+                            }
+                            catch
+                            {
+                                DateTime.TryParse(val, out var dt);
+                                hdr.Date = dt;
+                            }
+                        }
+                        else
+                        {
+                            DateTime.TryParse(val, out var dt);
+                            hdr.Date = dt;
+                        }
+                    }
+                    else if (string.Equals(key, "Sampling rate", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Sampling Rate", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (int.TryParse(val, out var sr)) hdr.SamplingRate = sr;
+                    }
+                    else if (string.Equals(key, "Sensor Ids", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Sensor Id", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var parts = val.Split(new[] { '|', ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToArray();
+                        var ids = new List<int>();
+                        foreach (var p in parts)
+                        {
+                            if (int.TryParse(p, out var id)) ids.Add(id);
+                        }
+                        hdr.SensorIds = ids.ToArray();
+                    }
+                    else if (string.Equals(key, "Sensor Labels", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "SensorLabel", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var parts = val.Split(new[] { '|', ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToArray();
+                        hdr.SensorLabels = parts;
+                    }
+                }
+                else
+                {
+                    // Some lines may use different separators or present key/value with no colon; try simple heuristics
+                    var parts = line.Split(new[] { ':' }, 2);
+                    if (parts.Length == 2)
+                    {
+                        var key = parts[0].Trim();
+                        var val = parts[1].Trim();
+                        // fallback to assign to DeviceName if looks like a device line
+                        if (key.IndexOf("BeanDevice", StringComparison.OrdinalIgnoreCase) >= 0)
+                            hdr.DeviceName = val;
+                    }
+                }
+            }
+
+            return hdr;
+        }
+
+        private static void ShowMessageBox(string text, string title, MessageBoxImage icon)
+        {
+            try
+            {
+                var app = Application.Current;
+                if (app?.Dispatcher != null)
+                {
+                    app.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        MessageBox.Show(text, title, MessageBoxButton.OK, icon);
+                    }));
+                }
+                else
+                {
+                    MessageBox.Show(text, title, MessageBoxButton.OK, icon);
+                }
+            }
+            catch
+            {
+                // swallow
+            }
+        }
+
         public static async Task<string> ReadLinesRangeAsync(
             string path,
             int startLine,
