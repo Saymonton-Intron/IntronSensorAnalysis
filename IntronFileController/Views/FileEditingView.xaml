@@ -164,7 +164,7 @@
                                         </InlineUIContainer>
                                         <LineBreak />
 
-                                        <!-- FirstLines: removed in Keep mode (red), kept in Cut mode (green) -->
+                                        <!--  FirstLines: removed in Keep mode (red), kept in Cut mode (green)  -->
                                         <Run Text="{Binding SelectedFile.FirstLines, Mode=OneWay}">
                                             <Run.Style>
                                                 <Style TargetType="Run">
@@ -182,7 +182,7 @@
                                         <Run Foreground="Red">------------------------------------------------</Run>
                                         <LineBreak />
 
-                                        <!-- SelectedFirstLines: kept in Keep mode (green), removed in Cut mode (red) -->
+                                        <!--  SelectedFirstLines: kept in Keep mode (green), removed in Cut mode (red)  -->
                                         <Run Text="{Binding SelectedFile.SelectedFirstLines, Mode=OneWay}">
                                             <Run.Style>
                                                 <Style TargetType="Run">
@@ -221,7 +221,7 @@
                                         Foreground="Gray"
                                         TextWrapping="Wrap">
 
-                                        <!-- SelectedLastLines: kept in Keep mode (green), removed in Cut mode (red) -->
+                                        <!--  SelectedLastLines: kept in Keep mode (green), removed in Cut mode (red)  -->
                                         <Run Text="{Binding SelectedFile.SelectedLastLines, Mode=OneWay}">
                                             <Run.Style>
                                                 <Style TargetType="Run">
@@ -237,7 +237,7 @@
                                         <LineBreak />
                                         <Run Foreground="Red">------------------------------------------------</Run>
                                         <LineBreak />
-                                        <!-- LastLines: removed in Keep mode (red), kept in Cut mode (green) -->
+                                        <!--  LastLines: removed in Keep mode (red), kept in Cut mode (green)  -->
                                         <Run Text="{Binding SelectedFile.LastLines, Mode=OneWay}">
                                             <Run.Style>
                                                 <Style TargetType="Run">
@@ -268,14 +268,6 @@
                         <StackPanel Grid.Row="1">
 
                             <DockPanel>
-                                <ToggleButton
-                                    Margin="0,0,8,0"
-                                    IsChecked="{Binding IsCutMode, Mode=TwoWay}"
-                                    Content="Modo: Cortar" />
-                                <Button
-                                    Margin="8,0,8,0"
-                                    Command="{Binding CutSelectionCommand}"
-                                    Content="Executar Corte" />
                                 <TextBlock
                                     VerticalAlignment="Bottom"
                                     Style="{DynamicResource MaterialDesignBodyMediumTextBlock}"
@@ -390,10 +382,10 @@
                 Command="{Binding ExportSelectionCommand}"
                 Content="Exportar seleção"
                 DockPanel.Dock="Right" />
-            <Button
+            <!--<Button
                 Command="{Binding NavigateBackCommand}"
                 Content="Cancelar e voltar"
-                DockPanel.Dock="Right" />
+                DockPanel.Dock="Right" />-->
 
         </DockPanel>
 
@@ -416,48 +408,82 @@
                 Controller="{Binding PlotController}"
                 Model="{x:Null}" />
 
-            <StackPanel Grid.Column="1">
+            <StackPanel Grid.Column="1" Margin="5,10,5,0">
+                <GroupBox Header="Pontos do gráfico">
+                    <StackPanel>
+                        <StackPanel Margin="8" Orientation="Vertical">
+                            <TextBlock Margin="2" Text="Max pontos na tela" />
+                            <controls:NumericUpDown
+                                Width="120"
+                                Maximum="10000000"
+                                Minimum="10"
+                                Value="{Binding MaxPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Margin="8" Orientation="Vertical">
+                            <TextBlock Margin="2" Text="Min pontos na tela" />
+                            <controls:NumericUpDown
+                                Width="120"
+                                Maximum="10000000"
+                                Minimum="1"
+                                Value="{Binding MinPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
 
-                <StackPanel Margin="8" Orientation="Vertical">
-                    <TextBlock Margin="2" Text="Max pontos na tela" />
-                    <controls:NumericUpDown
-                        Width="120"
-                        Maximum="10000000"
-                        Minimum="10"
-                        Value="{Binding MaxPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
-                <StackPanel Margin="8" Orientation="Vertical">
-                    <TextBlock Margin="2" Text="Min pontos na tela" />
-                    <controls:NumericUpDown
-                        Width="120"
-                        Maximum="10000000"
-                        Minimum="1"
-                        Value="{Binding MinPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
+                        <!--<Button Margin="10"
+                                Command="{Binding ShowHideMarkersCommand}"
+                                Content="{Binding IsShowingMarkersText}"
+                                ToolTip="Alterna a exibição dos pontos (markers) no gráfico" />-->
 
-                <Button
-                    Margin="10"
-                    Command="{Binding ShowHideMarkersCommand}"
-                    Content="{Binding IsShowingMarkersText}"
-                    ToolTip="Alterna a exibição dos pontos (markers) no gráfico" />
+                        <StackPanel Margin="0,5,0,10" Orientation="Horizontal">
+                            <TextBlock
+                                Margin="5,0,5,0"
+                                VerticalAlignment="Center"
+                                Text="Mostrar pontos" />
+                            <ToggleButton Margin="0,0,8,0" IsChecked="{Binding IsPointsShown, Mode=TwoWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+
 
                 <!--  Plot selection numeric controls  -->
-                <StackPanel Margin="8" Orientation="Vertical">
-                    <TextBlock Margin="2" Text="Plot seleção min (índice)" />
-                    <controls:NumericUpDown
-                        Width="120"
-                        Maximum="10000000"
-                        Minimum="0"
-                        Value="{Binding PlotSelectionMin, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
-                <StackPanel Margin="8" Orientation="Vertical">
-                    <TextBlock Margin="2" Text="Plot seleção max (índice)" />
-                    <controls:NumericUpDown
-                        Width="120"
-                        Maximum="10000000"
-                        Minimum="0"
-                        Value="{Binding PlotSelectionMax, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
+                <GroupBox Header="Seleção do gráfico">
+                    <StackPanel>
+                        <StackPanel Margin="8" Orientation="Vertical">
+                            <TextBlock Margin="2" Text="Plot seleção min (índice)" />
+                            <controls:NumericUpDown
+                                Width="120"
+                                Maximum="10000000"
+                                Minimum="0"
+                                Value="{Binding PlotSelectionMin, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Margin="8" Orientation="Vertical">
+                            <TextBlock Margin="2" Text="Plot seleção max (índice)" />
+                            <controls:NumericUpDown
+                                Width="120"
+                                Maximum="10000000"
+                                Minimum="0"
+                                Value="{Binding PlotSelectionMax, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Cortar conteúdo">
+                    <StackPanel>
+                        <StackPanel Margin="0,5,0,10" Orientation="Horizontal">
+                            <TextBlock
+                                Margin="5,0,5,0"
+                                VerticalAlignment="Center"
+                                Text="Cortar selecionado" />
+                            <ToggleButton
+                                Margin="0,0,8,0"
+                                IsChecked="{Binding IsCutMode, Mode=TwoWay}" />
+                        </StackPanel>
+                        <Button
+                            Margin="8,0,8,0"
+                            Command="{Binding CutSelectionCommand}"
+                            Content="Executar Corte" />
+                    </StackPanel>
+
+                </GroupBox>
 
             </StackPanel>
         </Grid>

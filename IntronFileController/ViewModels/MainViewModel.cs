@@ -22,6 +22,7 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TitleText))]
+    [NotifyPropertyChangedFor(nameof(NavigateBackVisibility))]
     private UserControl currentUC;
     partial void OnCurrentUCChanged(UserControl? oldValue, UserControl newValue)
     {
@@ -77,6 +78,8 @@ public partial class MainViewModel : ObservableObject
         ? PackIconKind.MoonWaxingCrescent
         : PackIconKind.WhiteBalanceSunny;
 
+    public Visibility NavigateBackVisibility =>
+        CurrentUC is not HomeView home ? Visibility.Visible : Visibility.Hidden;
     public MainViewModel(IThemeService _themeService, IOxyThemeHelper _oxyThemeHelper, IFileImportService _fileImportService, ServiceProvider _serviceProvider)
     {
         themeService = _themeService;
@@ -100,4 +103,12 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentThemeIcon));
     }
 
+    [RelayCommand]
+    private void NavigateBack()
+    {
+        if (CurrentUC is FileEditingView view)
+        {
+            view.VM.NavigateBackCommand.Execute(this);
+        }
+    }
 }

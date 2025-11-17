@@ -163,6 +163,13 @@ namespace IntronFileController.ViewModels
         [ObservableProperty]
         private bool isCutMode = false; // false = Keep mode (default)
 
+        [ObservableProperty]
+        private bool isPointsShown = false; // false = Keep mode (default)
+        partial void OnIsPointsShownChanged(bool value)
+        {
+            ShowHideMarkers(value);
+        }
+
         private string lastLinesTextBox = "0";
         public string LastLinesTextBox
         {
@@ -869,25 +876,25 @@ namespace IntronFileController.ViewModels
             OnPropertyChanged(nameof(TextInitLabelVisibility));
             // Do not rebuild plot or change axis here. The plot remains displayed as-is.
         }
+        // Esse método só inverte (toggle) enquanto a sobrecarga o controla pelo value passado
         [RelayCommand(CanExecute = nameof(CanShowHideMarkers))]
-        private void ShowHideMarkers()
+        private void ShowHideMarkers() => ShowHideMarkers(!IsShowingMarkers);
+        private void ShowHideMarkers(bool value)
         {
             if (_lineSeries == null) return;
-
-            if (IsShowingMarkers)
-            {
-
-                _lineSeries.MarkerType = MarkerType.None;
-                _lineSeriesX.MarkerType = MarkerType.None;
-                _lineSeriesY.MarkerType = MarkerType.None;
-                IsShowingMarkers = false;
-            }
-            else
+            if (value)
             {
                 _lineSeries.MarkerType = MarkerType.Circle;
                 _lineSeriesX.MarkerType = MarkerType.Circle;
                 _lineSeriesY.MarkerType = MarkerType.Circle;
                 IsShowingMarkers = true;
+            }
+            else
+            {
+                _lineSeries.MarkerType = MarkerType.None;
+                _lineSeriesX.MarkerType = MarkerType.None;
+                _lineSeriesY.MarkerType = MarkerType.None;
+                IsShowingMarkers = false;
             }
             PlotModel?.InvalidatePlot(true);
         }
@@ -897,9 +904,49 @@ namespace IntronFileController.ViewModels
         [RelayCommand]
         private void NavigateBack()
         {
-            ImportedFiles.Clear();
-            //fileHandlerHelper.ImportedFiles.Clear();
-            NavigateInvoked?.Invoke(this, new());
+            bool hasChanges = false;
+            try
+            {
+                if (ImportedFiles != null && ImportedFiles.Count > 0)
+                {
+                    hasChanges = ImportedFiles.Any(f =>
+                        (f.RemovedRanges != null && f.RemovedRanges.Count > 0) ||
+                        // protege contra null e compara previews
+                        (f.WorkingPreview != null && f.Model?.Preview != null && !ReferenceEquals(f.WorkingPreview, f.Model.Preview) && !string.Equals(f.WorkingPreview, f.Model.Preview, StringComparison.Ordinal))
+                        );
+                }
+            }
+            catch
+            {
+                // Em caso de qualquer erro ao verificar, assume que há alterações para evitar perda acidental.
+                hasChanges = true;
+            }
+
+            if (hasChanges)
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    var result = MessageBox.Show(System.Windows.Application.Current.MainWindow,
+                        "Existem alterações não salvas. Deseja descartar as alterações e voltar?",
+                        "Confirmar retorno",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        ImportedFiles?.Clear();
+                        //fileHandlerHelper.ImportedFiles.Clear();
+                        NavigateInvoked?.Invoke(this, new());
+                    }
+                    // se escolher No, não faz nada (permanece na tela)
+                });
+            }
+            else
+            {
+                ImportedFiles?.Clear();
+                //fileHandlerHelper.ImportedFiles.Clear();
+                NavigateInvoked?.Invoke(this, new());
+            }
         }
 
         [RelayCommand]
