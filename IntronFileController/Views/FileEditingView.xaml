@@ -427,6 +427,14 @@
                                 Minimum="1"
                                 Value="{Binding MinPointsOnScreen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
+                        <StackPanel Margin="8" Orientation="Vertical">
+                            <TextBlock Margin="2" Text="Sample rating" />
+                            <controls:NumericUpDown
+                                Width="120"
+                                Maximum="10000000"
+                                Minimum="1"
+                                Value="{Binding SelectedFile.SamplingRate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
 
                         <!--<Button Margin="10"
                                 Command="{Binding ShowHideMarkersCommand}"
@@ -473,9 +481,7 @@
                                 Margin="5,0,5,0"
                                 VerticalAlignment="Center"
                                 Text="Cortar selecionado" />
-                            <ToggleButton
-                                Margin="0,0,8,0"
-                                IsChecked="{Binding IsCutMode, Mode=TwoWay}" />
+                            <ToggleButton Margin="0,0,8,0" IsChecked="{Binding IsCutMode, Mode=TwoWay}" />
                         </StackPanel>
                         <Button
                             Margin="8,0,8,0"

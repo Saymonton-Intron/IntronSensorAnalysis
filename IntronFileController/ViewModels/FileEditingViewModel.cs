@@ -11,6 +11,9 @@ using System.Globalization;
 using System.Windows;
 using OxyPlot.Legends;
 using System.ComponentModel;
+using System.Collections.Specialized;
+using System.Linq;
+using System;
 
 namespace IntronFileController.ViewModels
 {
@@ -59,14 +62,14 @@ namespace IntronFileController.ViewModels
                 System.Windows.Application.Current?.Dispatcher.Invoke(() =>
                 {
                     // Recalcula a plotagem para toda a faixa (inicial)
-                    RebuildPlotForRange(0, Math.Max(0, value.ZMeasurements.Count - 1));
+                    // For time axis, compute overall visible range from earliest to latest among selected file
+                    RebuildPlotForRange(PlotModel.DefaultXAxis?.ActualMinimum ?? 0, PlotModel.DefaultXAxis?.ActualMaximum ?? 0);
 
-                    // initialize selection texts to full range
+                    // initialize selection texts to full range (keep numeric indices for now)
                     PlotSelectionMinText = "0";
                     PlotSelectionMaxText = (Math.Max(0, value.ZMeasurements.Count - 1)).ToString(CultureInfo.InvariantCulture);
 
                     // initialize rectangle selection to match current file cuts
-                    // Map: PlotMin = TopCutLine (0-based), PlotMax = BottomCutLine - 1 (since BottomCutLine is 1-based)
                     try
                     {
                         var min = value.TopCutLine;
@@ -91,19 +94,24 @@ namespace IntronFileController.ViewModels
 
             if (_suppressFileToPlot) return; // avoid reacting to changes we initiated from plot
 
-            // react only to top/bottom cut changes
+            // react only to top/bottom cut changes: map to selection but selection now is timestamp based
             if (e.PropertyName == nameof(ImportedFileViewModel.TopCutLine) || e.PropertyName == nameof(ImportedFileViewModel.BottomCutLine))
             {
-                // Map file cuts -> plot selection
                 try
                 {
-                    var min = vm.TopCutLine;
-                    // BottomCutLine is 1-based first removed; plot max = BottomCutLine - 2
-                    var max = Math.Max(0, vm.BottomCutLine - 2);
+                    // map top/bottom sample indices to timestamps using selected file
+                    var topIdx = vm.TopCutLine;
+                    var bottomIdx = Math.Max(0, vm.BottomCutLine - 2);
 
-                    _suppressPlotToFile = true;
-                    ApplyPlotSelectionToAxis(min, max);
-                    _suppressPlotToFile = false;
+                    if (vm.Timestamps.Count > 0)
+                    {
+                        double min = DateTimeAxis.ToDouble(vm.Timestamps[Math.Max(0, Math.Min(vm.Timestamps.Count - 1, topIdx))]);
+                        double max = DateTimeAxis.ToDouble(vm.Timestamps[Math.Max(0, Math.Min(vm.Timestamps.Count - 1, bottomIdx))]);
+
+                        _suppressPlotToFile = true;
+                        ApplyPlotSelectionToAxis(min, max);
+                        _suppressPlotToFile = false;
+                    }
                 }
                 catch
                 {
@@ -145,14 +153,18 @@ namespace IntronFileController.ViewModels
                     OnPropertyChanged(nameof(TextInitLabelVisibility));
                     OnPropertyChanged(nameof(TextEndLabelVisibility));
 
-                    // also update plot selection rectangle
+                    // also update plot selection rectangle (map using timestamps)
                     try
                     {
-                        var min = SelectedFile.TopCutLine;
-                        var max = Math.Max(0, SelectedFile.BottomCutLine - 2);
-                        _suppressPlotToFile = true;
-                        ApplyPlotSelectionToAxis(min, max);
-                        _suppressPlotToFile = false;
+                        if (SelectedFile.Timestamps.Count > 0)
+                        {
+                            var min = DateTimeAxis.ToDouble(SelectedFile.Timestamps[Math.Max(0, Math.Min(SelectedFile.Timestamps.Count - 1, SelectedFile.TopCutLine))]);
+                            var max = DateTimeAxis.ToDouble(SelectedFile.Timestamps[Math.Max(0, Math.Min(SelectedFile.Timestamps.Count - 1, SelectedFile.BottomCutLine - 2))]);
+
+                            _suppressPlotToFile = true;
+                            ApplyPlotSelectionToAxis(min, max);
+                            _suppressPlotToFile = false;
+                        }
                     }
                     catch { _suppressPlotToFile = false; }
                 }
@@ -204,11 +216,15 @@ namespace IntronFileController.ViewModels
                     // update plot selection rectangle too
                     try
                     {
-                        var min = SelectedFile.TopCutLine;
-                        var max = Math.Max(0, SelectedFile.BottomCutLine - 2);
-                        _suppressPlotToFile = true;
-                        ApplyPlotSelectionToAxis(min, max);
-                        _suppressPlotToFile = false;
+                        if (SelectedFile.Timestamps.Count > 0)
+                        {
+                            var min = DateTimeAxis.ToDouble(SelectedFile.Timestamps[Math.Max(0, Math.Min(SelectedFile.Timestamps.Count - 1, SelectedFile.TopCutLine))]);
+                            var max = DateTimeAxis.ToDouble(SelectedFile.Timestamps[Math.Max(0, Math.Min(SelectedFile.Timestamps.Count - 1, SelectedFile.BottomCutLine - 2))]);
+
+                            _suppressPlotToFile = true;
+                            ApplyPlotSelectionToAxis(min, max);
+                            _suppressPlotToFile = false;
+                        }
                     }
                     catch { _suppressPlotToFile = false; }
 
@@ -256,12 +272,18 @@ namespace IntronFileController.ViewModels
 
         public PlotModel PlotModel { get; private set; } = new() { Title = "Acelerômetro triaxial" };
         public PlotController PlotController { get; private set; } = new();
-        public LineSeries _lineSeries { get; private set; } = new();
-        public LineSeries _lineSeriesX { get; private set; } = new();
-        public LineSeries _lineSeriesY { get; private set; } = new();
-        public List<DataPoint> PlotPointsZ { get; private set; } = [];
-        public List<DataPoint> PlotPointsX { get; private set; } = [];
-        public List<DataPoint> PlotPointsY { get; private set; } = [];
+        // per-file series bundles
+        private class SeriesBundle
+        {
+            public LineSeries ZSeries { get; set; } = new();
+            public LineSeries XSeries { get; set; } = new();
+            public LineSeries YSeries { get; set; } = new();
+            public List<DataPoint> ZPoints { get; set; } = new();
+            public List<DataPoint> XPoints { get; set; } = new();
+            public List<DataPoint> YPoints { get; set; } = new();
+        }
+        private readonly Dictionary<ImportedFileViewModel, SeriesBundle> _seriesMap = new();
+
         private int _maxSecsPlotPoint = 10;
         private double _zeroOffset = 0;
 
@@ -490,6 +512,87 @@ namespace IntronFileController.ViewModels
 
             oxyThemeHelper.Apply(PlotModel, themeService.Current);
             themeService.ThemeChanged += (sender, baseTheme) => oxyThemeHelper.Apply(PlotModel, baseTheme);
+
+            // respond to collection changes to add/remove series bundles
+            ImportedFiles.CollectionChanged += ImportedFiles_CollectionChanged;
+            // add initial bundles
+            foreach (var f in ImportedFiles) AddSeriesForFile(f);
+        }
+
+        private void ImportedFiles_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems != null)
+            {
+                foreach (ImportedFileViewModel f in e.NewItems) AddSeriesForFile(f);
+            }
+            if (e.OldItems != null)
+            {
+                foreach (ImportedFileViewModel f in e.OldItems) RemoveSeriesForFile(f);
+            }
+
+            RebuildPlotForCurrentRange();
+        }
+
+        private void AddSeriesForFile(ImportedFileViewModel file)
+        {
+            if (_seriesMap.ContainsKey(file)) return;
+            var bundle = new SeriesBundle();
+
+            bundle.ZSeries = new LineSeries
+            {
+                Title = file.Model.FileName + " - Z",
+                StrokeThickness = 1.5,
+                MarkerType = MarkerType.None,
+                ItemsSource = bundle.ZPoints,
+                TrackerFormatString = "{0}\n{2:0.000}"
+            };
+            bundle.XSeries = new LineSeries
+            {
+                Title = file.Model.FileName + " - X",
+                StrokeThickness = 1.0,
+                Color = OxyColors.Red,
+                MarkerType = MarkerType.None,
+                ItemsSource = bundle.XPoints
+            };
+            bundle.YSeries = new LineSeries
+            {
+                Title = file.Model.FileName + " - Y",
+                StrokeThickness = 1.0,
+                Color = OxyColors.DodgerBlue,
+                MarkerType = MarkerType.None,
+                ItemsSource = bundle.YPoints
+            };
+
+            _seriesMap[file] = bundle;
+
+            PlotModel.Series.Add(bundle.ZSeries);
+            PlotModel.Series.Add(bundle.XSeries);
+            PlotModel.Series.Add(bundle.YSeries);
+
+            // subscribe to file changes to update series
+            file.PropertyChanged += File_PropertyChanged;
+        }
+
+        private void RemoveSeriesForFile(ImportedFileViewModel file)
+        {
+            if (!_seriesMap.TryGetValue(file, out var bundle)) return;
+            PlotModel.Series.Remove(bundle.ZSeries);
+            PlotModel.Series.Remove(bundle.XSeries);
+            PlotModel.Series.Remove(bundle.YSeries);
+            _seriesMap.Remove(file);
+            file.PropertyChanged -= File_PropertyChanged;
+        }
+
+        private void File_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (sender is ImportedFileViewModel f)
+            {
+                // when measurements or timestamps change, refresh series for current visible range
+                if (e.PropertyName == nameof(ImportedFileViewModel.ZMeasurements) || e.PropertyName == nameof(ImportedFileViewModel.WorkingPreview))
+                {
+                    RebuildPlotForCurrentRange();
+                }
+            }
         }
 
         private void SetupPlotModel()
@@ -622,10 +725,13 @@ namespace IntronFileController.ViewModels
                 LegendTextColor = OxyColors.WhiteSmoke,
                 IsLegendVisible = true,
             });
-            PlotModel.Axes.Add(new LinearAxis
+
+            // Replace bottom axis with DateTimeAxis
+            PlotModel.Axes.Add(new DateTimeAxis
             {
                 Position = AxisPosition.Bottom,
-                Title = "Amostras",
+                StringFormat = "yyyy-MM-dd HH:mm:ss",
+                Title = "Tempo",
                 MajorGridlineStyle = LineStyle.Solid,
                 MinorGridlineStyle = LineStyle.Dot
             });
@@ -646,133 +752,61 @@ namespace IntronFileController.ViewModels
                 _axisChangeTimer.Start();
             };
 
-            _lineSeries = new LineSeries
-            {
-                Title = "Eixo Vertical (g)",
-                StrokeThickness = 2,
-                MarkerType = MarkerType.None,
-                MarkerSize = 5,
-                MarkerStroke = OxyColors.Green,
-                MarkerFill = OxyColors.White,
-                MarkerStrokeThickness = 1.2,
-                ItemsSource = PlotPointsZ,
-                TrackerFormatString = "Amostra {2:0}\nValor {4} g",
-                CanTrackerInterpolatePoints = false
-            };
-
-            _lineSeriesX = new LineSeries
-            {
-                Title = "Eixo Lateral (g)",
-                StrokeThickness = 2,
-                Color = OxyColors.Red,
-                MarkerType = MarkerType.None,
-                MarkerSize = 5,
-                MarkerStroke = OxyColors.Red,
-                MarkerFill = OxyColors.White,
-                MarkerStrokeThickness = 1.2,
-                ItemsSource = PlotPointsX,
-                TrackerFormatString = "Amostra {2:0}\nValor {4} g",
-                CanTrackerInterpolatePoints = false
-            };
-
-            _lineSeriesY = new LineSeries
-            {
-                Title = "Eixo Frontal (g)",
-                StrokeThickness = 2,
-                Color = OxyColors.DodgerBlue,
-                MarkerType = MarkerType.None,
-                MarkerSize = 5,
-                MarkerStroke = OxyColors.DodgerBlue,
-                MarkerFill = OxyColors.White,
-                MarkerStrokeThickness = 1.2,
-                ItemsSource = PlotPointsY,
-                TrackerFormatString = "Amostra {2:0}\nValor {4} g",
-                CanTrackerInterpolatePoints = false
-            };
-
-            PlotModel.Series.Add(_lineSeries);
-            PlotModel.Series.Add(_lineSeriesX);
-            PlotModel.Series.Add(_lineSeriesY);
+            // don't add static series here; series are added per-file in AddSeriesForFile
         }
 
         // Reconstroi as List<DataPoint> (PlotPointsZ/X/Y) para a faixa [minX,maxX]
         private void RebuildPlotForRange(double minX, double maxX)
         {
-            if (SelectedFile is null) return;
+            // minX / maxX are axis coordinates (DateTime) values. Convert to DateTime
+            var start = DateTimeAxis.ToDateTime(minX);
+            var end = DateTimeAxis.ToDateTime(maxX);
 
-            int total = SelectedFile.ZMeasurements.Count;
-            if (total == 0) return;
-
-            // clamp faixa aos índices de amostra
-            int startIdx = Math.Max(0, (int)Math.Floor(minX));
-            int endIdx = Math.Min(total - 1, (int)Math.Ceiling(maxX));
-            if (endIdx < startIdx) endIdx = startIdx;
-
-            int windowLength = Math.Max(1, endIdx - startIdx + 1);
-
-            // guarda escalas Y atuais para evitar autoscale ao rebuild (Pan/Zoom)
-            var verticalAxes = PlotModel.Axes.Where(a => a.IsVertical()).Select(a => (axis: a, min: a.ActualMinimum, max: a.ActualMaximum)).ToList();
-
-            // cálculo adaptativo de quantos pontos mostrar:
-            // quanto menor a janela visível (zoom in), maior o número de pontos (até o total)
-            double fullRange = Math.Max(1, total - 1);
-            double visibleWidth = Math.Max(1.0, maxX - minX);
-            // fator: relação entre faixa completa e faixa visível
-            double zoomFactor = fullRange / visibleWidth;
-
-            // rawDesired: tenta escalar _maxDisplayPoints pela razão de zoom
-            int rawDesired = Math.Max(1, (int)(_maxDisplayPoints * zoomFactor));
-
-            // aplica limites: evita muitos pontos quando zoom ainda está "médio"
-            // - força um mínimo razoável
-            // - força um teto absoluto para evitar travamentos em janelas médias/grandes
-            int desired = Math.Clamp(rawDesired, MinPointsOnScreen, MaxPointsOnScreen);
-
-            // se a janela está muito pequena (windowLength < desired), permitimos mostrar todos os pontos da janela
-            desired = Math.Min(desired, windowLength);
-
-            // obtém a sublista de valores e aplica downsample
-            var subZ = SelectedFile.ZMeasurements.Skip(startIdx).Take(windowLength).ToList();
-            var subX = SelectedFile.XMeasurements.Skip(startIdx).Take(windowLength).ToList();
-            var subY = SelectedFile.YMeasurements.Skip(startIdx).Take(windowLength).ToList();
-
-            var decZ = DownsampleMinMax(subZ, desired)
-                        .Select(dp => new DataPoint(dp.X + startIdx, dp.Y))
-                        .ToList();
-            var decX = DownsampleMinMax(subX, desired)
-                        .Select(dp => new DataPoint(dp.X + startIdx, dp.Y))
-                        .ToList();
-            var decY = DownsampleMinMax(subY, desired)
-                        .Select(dp => new DataPoint(dp.X + startIdx, dp.Y))
-                        .ToList();
-
-            PlotPointsZ.Clear();
-            PlotPointsX.Clear();
-            PlotPointsY.Clear();
-
-            PlotPointsZ.AddRange(decZ);
-            PlotPointsX.AddRange(decX);
-            PlotPointsY.AddRange(decY);
-
-            // atualiza o CanExecute do comando de mostrar markers
-            ShowHideMarkersCommand.NotifyCanExecuteChanged();
-
-            // reaplica escalas Y anteriores para evitar autoscale durante pan/zoom
-            // unless we were asked to skip reapplying once (e.g. after Reset)
-            if (!_skipReapplyVerticalOnce)
+            // for each file, build points within range
+            foreach (var kv in _seriesMap)
             {
-                foreach (var (axis, min, max) in verticalAxes)
+                var file = kv.Key;
+                var bundle = kv.Value;
+
+                bundle.ZPoints.Clear();
+                bundle.XPoints.Clear();
+                bundle.YPoints.Clear();
+
+                var timestamps = file.Timestamps;
+                var zs = file.ZMeasurements.ToList();
+                var xs = file.XMeasurements.ToList();
+                var ys = file.YMeasurements.ToList();
+
+                if (timestamps == null || timestamps.Count == 0) continue;
+
+                // build parallel arrays of X (axis double) and Y values within index window
+                var xsD = new List<double>();
+                var zsSel = new List<double>();
+                var xsSel = new List<double>();
+                var ysSel = new List<double>();
+
+                for (int i = 0; i < timestamps.Count; i++)
                 {
-                    if (!double.IsNaN(min) && !double.IsNaN(max) && min < max)
-                    {
-                        axis.Zoom(min, max);
-                    }
+                    var t = timestamps[i];
+                    if (t < start || t > end) continue;
+                    xsD.Add(DateTimeAxis.ToDouble(t));
+                    zsSel.Add(i < zs.Count ? zs[i] : double.NaN);
+                    xsSel.Add(i < xs.Count ? xs[i] : double.NaN);
+                    ysSel.Add(i < ys.Count ? ys[i] : double.NaN);
                 }
-            }
-            else
-            {
-                // consume the skip flag so next rebuild behaves normally
-                _skipReapplyVerticalOnce = false;
+
+                if (xsD.Count == 0) continue;
+
+                int desired = Math.Clamp(_maxDisplayPoints, MinPointsOnScreen, MaxPointsOnScreen);
+                desired = Math.Min(desired, xsD.Count);
+
+                var decZ = DownsampleMinMaxWithX(zsSel, xsD, desired);
+                var decX = DownsampleMinMaxWithX(xsSel, xsD, desired);
+                var decY = DownsampleMinMaxWithX(ysSel, xsD, desired);
+
+                bundle.ZPoints.AddRange(decZ);
+                bundle.XPoints.AddRange(decX);
+                bundle.YPoints.AddRange(decY);
             }
 
             PlotModel.InvalidatePlot(true);
@@ -781,15 +815,14 @@ namespace IntronFileController.ViewModels
         // Rebuild usando o eixo X atual
         private void RebuildPlotForCurrentRange()
         {
-            if (SelectedFile is null) return;
             var xAxis = PlotModel.DefaultXAxis ?? PlotModel.Axes.First(a => a.IsHorizontal());
             double min = xAxis.ActualMinimum;
             double max = xAxis.ActualMaximum;
             RebuildPlotForRange(min, max);
         }
 
-        // Downsampling simples: para cada bucket calcula min e max (preserva envelope)
-        private List<DataPoint> DownsampleMinMax(IList<double> values, int maxPoints)
+        // Downsampling that preserves X positions
+        private List<DataPoint> DownsampleMinMaxWithX(IList<double> values, IList<double> xs, int maxPoints)
         {
             int n = values?.Count ?? 0;
             var result = new List<DataPoint>();
@@ -798,16 +831,15 @@ namespace IntronFileController.ViewModels
             {
                 result.Capacity = n;
                 for (int i = 0; i < n; i++)
-                    result.Add(new DataPoint(i, values[i]));
+                    result.Add(new DataPoint(xs[i], values[i]));
                 return result;
             }
 
-            // usa min/max por bucket; estimativa de buckets para ficar perto de maxPoints
             int targetBuckets = Math.Max(1, maxPoints / 2);
             double bucketSize = (double)n / targetBuckets;
 
-            // inclui primeiro ponto
-            result.Add(new DataPoint(0, values[0]));
+            // include first
+            result.Add(new DataPoint(xs[0], values[0]));
 
             for (int b = 0; b < targetBuckets; b++)
             {
@@ -829,24 +861,23 @@ namespace IntronFileController.ViewModels
 
                 if (minIdx == maxIdx)
                 {
-                    result.Add(new DataPoint(minIdx, minVal));
+                    result.Add(new DataPoint(xs[minIdx], minVal));
                 }
                 else if (minIdx < maxIdx)
                 {
-                    result.Add(new DataPoint(minIdx, minVal));
-                    result.Add(new DataPoint(maxIdx, maxVal));
+                    result.Add(new DataPoint(xs[minIdx], minVal));
+                    result.Add(new DataPoint(xs[maxIdx], maxVal));
                 }
                 else
                 {
-                    result.Add(new DataPoint(maxIdx, maxVal));
-                    result.Add(new DataPoint(minIdx, minVal));
+                    result.Add(new DataPoint(xs[maxIdx], maxVal));
+                    result.Add(new DataPoint(xs[minIdx], minVal));
                 }
             }
 
-            // inclui último ponto
-            result.Add(new DataPoint(n - 1, values[n - 1]));
+            // include last
+            result.Add(new DataPoint(xs[n - 1], values[n - 1]));
 
-            // ordena por X para garantir sequência
             result = result.OrderBy(p => p.X).ToList();
             return result;
         }
@@ -854,52 +885,36 @@ namespace IntronFileController.ViewModels
         [RelayCommand]
         private void RangeSelected((double Min, double Max) range)
         {
-            // Exemplo: só loga / aplica zoom / filtra / abre diálogo...
             var (min, max) = range;
 
-            // Coerce selection to integer sample indices when possible
-            if (SelectedFile is not null)
-            {
-                var total = Math.Max(1, SelectedFile.ZMeasurements.Count);
-                var intMin = Math.Max(0, Math.Min(total - 1, (int)Math.Floor(min)));
-                var intMax = Math.Max(0, Math.Min(total - 1, (int)Math.Floor(max)));
-
-                // Update internal selection (this will trigger OnPlotSelection... handlers which will sync to file)
-                _suppressPlotToFile = false; // ensure syncing allowed
-                ApplyPlotSelectionToAxis(intMin, intMax);
-            }
-            else
-            {
-                // fallback: assign raw values
-                ApplyPlotSelectionToAxis(min, max);
-            }
+            // If selection given, coerce to nearest axis domain values
+            ApplyPlotSelectionToAxis(min, max);
             OnPropertyChanged(nameof(TextInitLabelVisibility));
-            // Do not rebuild plot or change axis here. The plot remains displayed as-is.
         }
         // Esse método só inverte (toggle) enquanto a sobrecarga o controla pelo value passado
         [RelayCommand(CanExecute = nameof(CanShowHideMarkers))]
         private void ShowHideMarkers() => ShowHideMarkers(!IsShowingMarkers);
         private void ShowHideMarkers(bool value)
         {
-            if (_lineSeries == null) return;
-            if (value)
+            foreach (var b in _seriesMap.Values)
             {
-                _lineSeries.MarkerType = MarkerType.Circle;
-                _lineSeriesX.MarkerType = MarkerType.Circle;
-                _lineSeriesY.MarkerType = MarkerType.Circle;
-                IsShowingMarkers = true;
+                if (value)
+                {
+                    b.ZSeries.MarkerType = MarkerType.Circle;
+                    b.XSeries.MarkerType = MarkerType.Circle;
+                    b.YSeries.MarkerType = MarkerType.Circle;
+                }
+                else
+                {
+                    b.ZSeries.MarkerType = MarkerType.None;
+                    b.XSeries.MarkerType = MarkerType.None;
+                    b.YSeries.MarkerType = MarkerType.None;
+                }
             }
-            else
-            {
-                _lineSeries.MarkerType = MarkerType.None;
-                _lineSeriesX.MarkerType = MarkerType.None;
-                _lineSeriesY.MarkerType = MarkerType.None;
-                IsShowingMarkers = false;
-            }
+            IsShowingMarkers = value;
             PlotModel?.InvalidatePlot(true);
         }
-        private bool CanShowHideMarkers() => (PlotPointsZ.Count() + PlotPointsX.Count() + PlotPointsY.Count()) > 0;
-
+        private bool CanShowHideMarkers() => _seriesMap.Values.Sum(b => b.ZPoints.Count + b.XPoints.Count + b.YPoints.Count) > 0;
 
         [RelayCommand]
         private void NavigateBack()
@@ -911,14 +926,12 @@ namespace IntronFileController.ViewModels
                 {
                     hasChanges = ImportedFiles.Any(f =>
                         (f.RemovedRanges != null && f.RemovedRanges.Count > 0) ||
-                        // protege contra null e compara previews
                         (f.WorkingPreview != null && f.Model?.Preview != null && !ReferenceEquals(f.WorkingPreview, f.Model.Preview) && !string.Equals(f.WorkingPreview, f.Model.Preview, StringComparison.Ordinal))
                         );
                 }
             }
             catch
             {
-                // Em caso de qualquer erro ao verificar, assume que há alterações para evitar perda acidental.
                 hasChanges = true;
             }
 
@@ -935,7 +948,6 @@ namespace IntronFileController.ViewModels
                     if (result == MessageBoxResult.Yes)
                     {
                         ImportedFiles?.Clear();
-                        //fileHandlerHelper.ImportedFiles.Clear();
                         NavigateInvoked?.Invoke(this, new());
                     }
                     // se escolher No, não faz nada (permanece na tela)
@@ -944,7 +956,6 @@ namespace IntronFileController.ViewModels
             else
             {
                 ImportedFiles?.Clear();
-                //fileHandlerHelper.ImportedFiles.Clear();
                 NavigateInvoked?.Invoke(this, new());
             }
         }
@@ -952,22 +963,20 @@ namespace IntronFileController.ViewModels
         [RelayCommand]
         private async Task AddFiles()
         {
-            // Abre dialogo para selecionar os arquivos para importar
             var textPaths = fileImportService.OpenDialogSelectTextFiles();
-
-            // chama serviço para importar (faz leitura assíncrona)
             var imported = await fileImportService.ImportTextFilesAsync(textPaths);
-
-            // Adiciona os arquivos no fileHandler
             fileHandlerHelper.AddFiles(imported);
         }
 
         [RelayCommand(CanExecute = nameof(CanExecuteRemoveSelectedCommand))]
         private void RemoveSelected()
         {
-            ImportedFiles.Remove(SelectedFile);
-            SelectedFile = ImportedFiles!.FirstOrDefault()!;
-
+            if (SelectedFile != null)
+            {
+                RemoveSeriesForFile(SelectedFile);
+                ImportedFiles.Remove(SelectedFile);
+                SelectedFile = ImportedFiles!.FirstOrDefault()!;
+            }
         }
         private bool CanExecuteRemoveSelectedCommand() => SelectedFile != null && ImportedFiles.Count > 0;
 
@@ -1079,29 +1088,16 @@ namespace IntronFileController.ViewModels
             if (ImportedFiles.Count <= 1 || SelectedFile is null)
                 return;
 
-            // 1) Descobre N = quantas últimas linhas o SelectedFile está mantendo
             int selTotal = SelectedFile.Model.Preview.Lines().Length;
-
-            // Se BottomCutLine é 1-based e inclusivo (ex.: 1 = primeira linha), então:
-            // N_keep = total - BottomCutLine + 1
             int nKeepFromEnd = Math.Max(0, selTotal - SelectedFile.BottomCutLine + 1);
 
             foreach (var file in ImportedFiles)
             {
                 if (ReferenceEquals(file, SelectedFile)) continue;
-
-                // copia o TopCutLine "como está" (se você também quiser preservar “quantas primeiras linhas” ao invés do índice,
-                // faça um cálculo similar ao do bottom)
                 file.TopCutLine = SelectedFile.TopCutLine;
-
-                // 2) Recalcula o índice de corte para ESTE arquivo,
-                //     de modo que ele também mantenha as mesmas N últimas linhas
                 int total = file.Model.Preview.Lines().Length;
-
-                // índice 1-based do começo do “rabo” (onde começam as últimas N)
                 int cutIndexFromTop = Math.Max(1, total - nKeepFromEnd + 1);
-
-                file.BottomCutLine = cutIndexFromTop; // <<< agora atribui no alvo
+                file.BottomCutLine = cutIndexFromTop;
             }
         }
 
@@ -1168,34 +1164,35 @@ namespace IntronFileController.ViewModels
         {
             if (SelectedFile is null) return;
 
-            int start = Math.Max(0, (int)Math.Floor(PlotSelectionMin));
-            int end = Math.Max(0, (int)Math.Floor(PlotSelectionMax));
+            // interpret PlotSelectionMin/Max as axis (datetime) values
+            var start = DateTimeAxis.ToDateTime(PlotSelectionMin);
+            var end = DateTimeAxis.ToDateTime(PlotSelectionMax);
 
-            var total = SelectedFile.WorkingPreview.Lines().Length;
-
-            if (IsCutMode)
+            // apply cut to all imported files using their timestamp indices
+            foreach (var f in ImportedFiles)
             {
-                // remove the selected rectangle
-                if (start <= end)
+                var (sIdx, eIdx) = f.GetIndexRangeForTimestampRange(start, end);
+                var total = f.WorkingPreview.Lines().Length;
+
+                if (IsCutMode)
                 {
-                    SelectedFile.CutRange(start, end);
+                    if (sIdx <= eIdx)
+                        f.CutRange(sIdx, eIdx);
+                }
+                else
+                {
+                    // Keep mode: remove everything outside [sIdx,eIdx]
+                    if (eIdx < total - 1)
+                    {
+                        f.CutRange(eIdx + 1, total - 1);
+                    }
+                    if (sIdx > 0)
+                    {
+                        f.CutRange(0, sIdx - 1);
+                    }
                 }
             }
-            else
-            {
-                // Keep mode: remove everything outside [start,end]
-                // Remove higher indices first to avoid reindexing issues
-                if (end < total - 1)
-                {
-                    SelectedFile.CutRange(end + 1, total - 1);
-                }
-                if (start > 0)
-                {
-                    SelectedFile.CutRange(0, start - 1);
-                }
-            }
 
-            // Refresh plot for current view
             RebuildPlotForCurrentRange();
             ShowHideMarkersCommand.NotifyCanExecuteChanged();
             RemoveSelectedCommand.NotifyCanExecuteChanged();

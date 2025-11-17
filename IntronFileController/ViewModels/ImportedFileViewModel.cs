@@ -15,10 +15,13 @@ public partial class ImportedFileViewModel : ObservableObject
 
     // Keep original preview (timestamped) and a working copy where temporary cuts are applied
     private string _originalPreview;
-    private string _workingPreview;
+    private string _working_preview;
 
     // Raw data (original numeric lines without timestamps) for efficient recalculation
     private readonly string _rawData;
+
+    // parsed timestamps for each line in WorkingPreview (keeps sync with measurements)
+    public List<DateTime> Timestamps { get; private set; } = new();
 
     // list of removed ranges (start inclusive, end inclusive) for potential future use
     public List<(int Start, int End)> RemovedRanges { get; } = new();
@@ -41,7 +44,7 @@ public partial class ImportedFileViewModel : ObservableObject
             _originalPreview = model.Preview;
         }
 
-        _workingPreview = _originalPreview;
+        _working_preview = _originalPreview;
 
         // defaults “de fábrica”
         TopCutLine = 0;          // linha alvo topo (1-based)
@@ -73,21 +76,43 @@ public partial class ImportedFileViewModel : ObservableObject
         ZMeasurements.Clear();
         XMeasurements.Clear();
         YMeasurements.Clear();
+        Timestamps.Clear();
+
+        var header = Model.ParsedHeader;
 
         foreach (var line in WorkingPreview.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries))
         {
             var p = line.Split(';'); // 0 é o datetime agora
             if (p.Length < 4) continue;
+
+            // parse timestamp
+            DateTime ts = default;
+            var tsRaw = p[0].Trim();
+            if (!string.IsNullOrEmpty(header?.DateFormat))
+            {
+                if (!DateTime.TryParseExact(tsRaw, header.DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out ts))
+                {
+                    DateTime.TryParse(tsRaw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out ts);
+                }
+            }
+            else
+            {
+                DateTime.TryParse(tsRaw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out ts);
+            }
+
+            Timestamps.Add(ts);
+
             // columns: Datetime;Measure Ch_Z(g);Ch_X(g);Ch_Y(g)
-            if (double.TryParse(p[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var z)) ZMeasurements.Add(z);
-            if (double.TryParse(p[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var x)) XMeasurements.Add(x);
-            if (double.TryParse(p[3], NumberStyles.Any, CultureInfo.InvariantCulture, out var y)) YMeasurements.Add(y);
+            if (double.TryParse(p[1].Trim().Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var z)) ZMeasurements.Add(z);
+            if (double.TryParse(p[2].Trim().Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var x)) XMeasurements.Add(x);
+            if (double.TryParse(p[3].Trim().Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var y)) YMeasurements.Add(y);
         }
 
         // notify plot/viewmodel that counts changed if needed
         OnPropertyChanged(nameof(ZMeasurements));
         OnPropertyChanged(nameof(XMeasurements));
         OnPropertyChanged(nameof(YMeasurements));
+        OnPropertyChanged(nameof(Timestamps));
     }
 
     // Builds timestamped preview (Datetime;z;x;y) from raw data lines (index;z;x;y) using header info
@@ -144,7 +169,7 @@ public partial class ImportedFileViewModel : ObservableObject
     public void RecalculateTimestamps()
     {
         var newPreview = BuildTimestampedPreviewFromRaw(_rawData, Model.ParsedHeader);
-        // do not assign to _originalPreview here (may be readonly in other partials); update model and working preview instead
+        // update model and working preview
         Model.Preview = newPreview;
         WorkingPreview = newPreview;
         RebuildMeasurementsFromPreview();
@@ -155,11 +180,11 @@ public partial class ImportedFileViewModel : ObservableObject
     // Expose working preview for other components if necessary
     public string WorkingPreview
     {
-        get => _workingPreview;
+        get => _working_preview;
         private set
         {
-            if (_workingPreview == value) return;
-            _workingPreview = value;
+            if (_working_preview == value) return;
+            _working_preview = value;
             OnPropertyChanged();
         }
     }
@@ -273,5 +298,21 @@ public partial class ImportedFileViewModel : ObservableObject
         RebuildMeasurementsFromPreview();
         BottomCutLine = Math.Max(1, WorkingPreview.Lines().Length + 1);
         RaiseAll();
+    }
+
+    // Return index range (inclusive) of lines whose timestamps lie within [start,end].
+    // If no intersection, returns (0,-1).
+    public (int Start, int End) GetIndexRangeForTimestampRange(DateTime start, DateTime end)
+    {
+        if (Timestamps == null || Timestamps.Count == 0) return (0, -1);
+        int s = -1, e = -1;
+        for (int i = 0; i < Timestamps.Count; i++)
+        {
+            if (s == -1 && Timestamps[i] >= start) s = i;
+            if (Timestamps[i] <= end) e = i;
+            if (Timestamps[i] > end) break;
+        }
+        if (s == -1 || e == -1 || e < s) return (0, -1);
+        return (s, e);
     }
 }
