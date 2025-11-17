@@ -31,6 +31,10 @@ namespace IntronFileController.Helpers
                     axis.MajorGridlineStyle = LineStyle.Solid;
                     axis.MinorGridlineStyle = LineStyle.Dot;
                 }
+                foreach (var legend in model.Legends)
+                {
+                    legend.LegendTextColor = OxyColors.White;
+                }
             }
             else // Light
             {
@@ -45,6 +49,10 @@ namespace IntronFileController.Helpers
                     axis.MinorGridlineColor = OxyColor.FromAColor(20, OxyColors.Gray);
                     axis.MajorGridlineStyle = LineStyle.Solid;
                     axis.MinorGridlineStyle = LineStyle.Dot;
+                }
+                foreach (var legend in model.Legends)
+                {
+                    legend.LegendTextColor = OxyColors.Black;
                 }
             }
 
